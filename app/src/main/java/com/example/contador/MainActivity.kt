@@ -253,7 +253,7 @@ fun Notificacion() {
             txtlabel = "Cuerpo de la notificación"
         )
         Button(onClick = {
-            notificationHandler.showSimpleNotification(titulo, cuerpo, "PrimeraP") // Luego
+            notificationHandler.enviarNotificacionConDestino(titulo, cuerpo, "PrimeraP") // Luego
             // notifica el mensaje creado
         }) { Text(text = "Clic para una notificación personalizada ") }
     }

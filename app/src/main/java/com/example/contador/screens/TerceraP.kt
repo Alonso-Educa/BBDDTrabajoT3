@@ -1,5 +1,6 @@
 package com.example.contador.screens
 
+import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.Crossfade
@@ -74,6 +75,8 @@ import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -96,6 +99,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -110,6 +114,8 @@ import com.example.contador.notification.NotificationHandler
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+// PENDIENTE POR METER BARRA DE BUSQUEDA Y MENU DESPLEGABLE
+
 // para hacer la barra de navegación lateral hace falta meter el scaffold dentro del drawer
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,9 +125,9 @@ fun ScrollP3(navController: NavController) {
     var showDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    // Estado para pull-to-refresh
     var isRefreshing by remember { mutableStateOf(false) }
-    val items = remember { mutableStateListOf("Elemento 1", "Elemento 2", "Elemento 3") }
+    val items = remember { mutableStateListOf<String>("Elemento 1", "Elemento 2") }
+    val contador = rememberSaveable { mutableIntStateOf(3) }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -215,36 +221,6 @@ fun ScrollP3(navController: NavController) {
             bottomBar = { BottomBar(navController as NavHostController) }
         ) { innerPadding ->
 
-//            val pullRefreshState = rememberPullRefreshState(
-//                refreshing = isRefreshing,
-//                onRefresh = {
-//                    // Lógica al hacer pull-to-refresh
-//                    scope.launch {
-//                        isRefreshing = true
-//                        delay(1500) // Simula carga de datos
-//                        items.add("Nuevo elemento ${items.size + 1}")
-//                        isRefreshing = false
-//                    }
-//                }
-//            )
-
-            PullToRefreshCustomIndicatorSample(
-                items = items,
-                isRefreshing = isRefreshing,
-                onRefresh = {
-                    // Lógica al hacer pull-to-refresh
-                    scope.launch {
-                        isRefreshing = true
-                        delay(1000) // Simula carga de datos
-                        items.add("Nuevo elemento ${items.size + 1}")
-                        isRefreshing = false
-                    }
-                },
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .fillMaxSize()
-            )
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -255,7 +231,7 @@ fun ScrollP3(navController: NavController) {
                 Button(onClick = {
                     scope.launch {
                         Toast.makeText(context, "Presionaste ir a la primera ventana", Toast.LENGTH_SHORT).show()
-                        notificationHandler.showSimpleNotification(
+                        notificationHandler.enviarNotificacionConDestino(
                             "¡Hola!",
                             "Notificación que irá a la Primera Ventana",
                             "PrimeraP"
@@ -268,14 +244,14 @@ fun ScrollP3(navController: NavController) {
                 Button(onClick = {
                     scope.launch {
                         Toast.makeText(context, "Presionaste ir a la segunda ventana", Toast.LENGTH_SHORT).show()
-                        notificationHandler.showSimpleNotification(
+                        notificationHandler.enviarNotificacionConDestino(
                             "¡Hola!",
                             "Notificación que irá a la Segunda Ventana",
                             "SegundaP"
                         )
                     }
                 }) {
-                    Text("Clic para notificación a Segunda")
+                    Text("Clic para notificación a Segunda Ventana")
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -291,12 +267,28 @@ fun ScrollP3(navController: NavController) {
                         }
                     )
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                PullToRefreshCustomStyleSample(items = items, isRefreshing = isRefreshing,
+                    onRefresh = {
+                        scope.launch {
+                            Toast.makeText(context, "Actualizando la aplicación", Toast.LENGTH_SHORT).show()
+                            delay(1000)
+                            items.add("Elemento ${contador.intValue++}")
+                            notificationHandler.enviarNotificacionSimple(
+                                "¡Hola!",
+                                "Has actualizado la aplicación",
+                            )
+                        }
+
+                    })
             }
         }
     }
 }
 
-
+// Para Tarjeta (1)
 @Composable
 fun Tarjeta() {
     ElevatedCard(
@@ -307,13 +299,15 @@ fun Tarjeta() {
             .size(width = 240.dp, height = 100.dp)
     ) {
         Text(
-            text = "Elevated",
+            text = "Texto en un Elevated Card",
             modifier = Modifier
                 .padding(16.dp),
             textAlign = TextAlign.Center,
         )
     }
 }
+
+// Para Carrusel (2)
 @Composable
 fun CarouselExample_MultiBrowse() {
     data class CarouselItem(
@@ -354,6 +348,7 @@ fun CarouselExample_MultiBrowse() {
     }
 }
 
+// Para cuadro de diálogo (3)
 @Composable
 fun Dialog(
     onDismiss: () -> Unit,
@@ -379,7 +374,7 @@ fun Dialog(
     )
 }
 
-
+// Para Barra de navegación inferior (5)
 @Composable
 fun BottomBar(navController: NavHostController) {
     val items = listOf(AppScreens.PrimeraP, AppScreens.SegundaP, AppScreens.TerceraP)
@@ -398,8 +393,9 @@ fun BottomBar(navController: NavHostController) {
     }
 }
 
+// Para Deslizar para Actualizar (7)
 @Composable
-fun PullToRefreshCustomIndicatorSample(
+fun PullToRefreshCustomStyleSample(
     items: List<String>,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
@@ -413,12 +409,14 @@ fun PullToRefreshCustomIndicatorSample(
         modifier = modifier,
         state = state,
         indicator = {
-            MyCustomIndicator(
-                state = state,
+            Indicator(
+                modifier = Modifier.align(Alignment.TopCenter),
                 isRefreshing = isRefreshing,
-                modifier = Modifier.align(Alignment.TopCenter)
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                state = state
             )
-        }
+        },
     ) {
         LazyColumn(Modifier.fillMaxSize()) {
             items(items) {
@@ -428,38 +426,37 @@ fun PullToRefreshCustomIndicatorSample(
     }
 }
 
+
 @Composable
-fun MyCustomIndicator(
-    state: PullRefreshState,
-    isRefreshing: Boolean,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier.pullRefresh(state),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        // Mostrar indicador según si está refrescando o no
-        if (isRefreshing) {
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .size(40.dp)
-                    .padding(top = 16.dp)
-            )
-        } else {
-            // Icono que crece según la distancia del pull
-            val progress = state.indicatorOffset / 80f // 80f = altura máxima del pull
-            Icon(
-                imageVector = Icons.Filled.CloudDownload,
-                contentDescription = "Pull to refresh",
-                modifier = Modifier
-                    .size(24.dp)
-                    .graphicsLayer {
-                        this.alpha = progress.coerceIn(0f, 1f)
-                        this.scaleX = progress.coerceIn(0f, 1f)
-                        this.scaleY = progress.coerceIn(0f, 1f)
-                    }
-                    .padding(top = 16.dp)
-            )
-        }
+fun CarruselTarjetas() {
+    data class CarouselItem(
+        val id: Int,
+        @DrawableRes val imageResId: Int,
+        val contentDescription: String
+    )
+
+    val items = remember {
+        listOf(
+            CarouselItem(0, R.drawable.pou, "cupcake"),
+            CarouselItem(1, R.drawable.perro, "donut"),
+            CarouselItem(2, R.drawable.gato, "eclair"),
+            CarouselItem(3, R.drawable.trex, "froyo"),
+            CarouselItem(4, R.drawable.tiburon, "gingerbread"),
+        )
+    }
+    val listaTarjetas = remember { mutableStateListOf<CardDefaults>() }
+
+    HorizontalMultiBrowseCarousel(
+        state = rememberCarouselState { items.count() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .padding(top = 16.dp, bottom = 16.dp),
+        preferredItemWidth = 186.dp,
+        itemSpacing = 8.dp,
+        contentPadding = PaddingValues(horizontal = 16.dp)
+    ) { i ->
+        val item = items[i]
+        Tarjeta()
     }
 }

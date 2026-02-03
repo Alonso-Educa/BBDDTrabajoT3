@@ -69,7 +69,7 @@ fun ScrollP2(navController: NavController) {
                 scope.launch { // Ejecuta la corrutina
                     //delay(10000) // Espera de 10 segundos. 1 segundo = 1000 milisegundos
                     Toast.makeText(context,"Presionaste ir a la primera ventana",Toast.LENGTH_SHORT).show()
-                    notificationHandler.showSimpleNotification("¡Hola!","Notificación que irá a la Primera Ventana","PrimeraP") //
+                    notificationHandler.enviarNotificacionConDestino("¡Hola!","Notificación que irá a la Primera Ventana","PrimeraP") //
                 }
             }) { Text(text = "Clic para una notificación avanzada en primera ventana") }
             Button(
@@ -77,7 +77,7 @@ fun ScrollP2(navController: NavController) {
                     scope.launch { // Ejecuta la corrutina
                         //delay(10000) // Espera de 10 segundos. 1 segundo = 1000 milisegundos
                         Toast.makeText(context,"Presionaste ir a la tercera ventana",Toast.LENGTH_SHORT).show()
-                        notificationHandler.showSimpleNotification("¡Hola!","Notificación que irá a la Tercera Ventana","TerceraP")
+                        notificationHandler.enviarNotificacionConDestino("¡Hola!","Notificación que irá a la Tercera Ventana","TerceraP")
                     }
                 }
             ) {

@@ -66,6 +66,8 @@ dependencies {
     // ROOM
     api("androidx.room:room-runtime:2.8.3")
     implementation("androidx.room:room-ktx:2.8.3")
+    implementation(libs.androidx.compose.animation)
+    implementation(libs.androidx.compose.ui.unit)
 //    implementation(libs.firebase.firestore)
     ksp("androidx.room:room-compiler:2.8.3")
 
