@@ -8,53 +8,36 @@ import androidx.room.Query
 @Dao
 interface SesionDao {
 
-    //Iniciar sesion
-
-
-    //Consultar inicio de sesión
-
-    //esto no esta siendo usado vvv
+    // 🔹 Obtener estado de sesión (no usado actualmente)
     @Query("SELECT * FROM ${Estructura.Sesion.TABLE_NAME} LIMIT 1")
     fun getEstadoSesion(): SesionData?
 
-
+    // 🔹 Obtener id de usuario de la sesión (ahora String)
     @Query("SELECT idUsuario FROM ${Estructura.Sesion.TABLE_NAME} LIMIT 1")
-    fun getIdUsuarioSesion(): Int?
+    fun getIdUsuarioSesion(): String?
 
+    // 🔹 Obtener usuario de la sesión (ahora String)
     @Query("SELECT * FROM ${Estructura.Usuario.TABLE_NAME} WHERE idUsuario = :id LIMIT 1")
-    fun getUsuarioSesion(id: Int): UsuarioData?
-// IDUSUARIO
+    fun getUsuarioSesion(id: String): UsuarioData?
 
+    // 🔹 Iniciar nueva sesión
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun nuevaSesion(sesion: SesionData)
 
-//    @Query(
-//        """
-//        SELECT *
-//        FROM ${Estructura.Usuario.TABLE_NAME} u
-//        INNER JOIN ${Estructura.Sesion.TABLE_NAME} s
-//            ON u.idUsuario = s.idUsuario
-//            ORDER BY idSesion DESC
-//        LIMIT 1
-//    """
-//    )
-//    fun getUsuarioSesionActual(): UsuarioData?
-
+    // 🔹 Eliminar sesión de un usuario (idUsuario como String)
     @Query(
         """
     DELETE FROM ${Estructura.Sesion.TABLE_NAME}
     WHERE idUsuario = :idUsuario
     """
     )
-    suspend fun eliminarSesionUsuario(idUsuario: Int)
+    suspend fun eliminarSesionUsuario(idUsuario: String)
 
-//    @Query("DELETE FROM sesion WHERE idUsuario = :idUsuario")
-//    suspend fun eliminarSesionUsuario(idUsuario: Int)
-
+    // 🔹 Obtener usuario actual de sesión (join)
     @Query("""
     SELECT *
-    FROM usuarios u
-    INNER JOIN SESIONES s ON u.idUsuario = s.idUsuario
+    FROM ${Estructura.Usuario.TABLE_NAME} u
+    INNER JOIN ${Estructura.Sesion.TABLE_NAME} s ON u.idUsuario = s.idUsuario
     LIMIT 1
 """)
     suspend fun getUsuarioSesionActual(): UsuarioData?

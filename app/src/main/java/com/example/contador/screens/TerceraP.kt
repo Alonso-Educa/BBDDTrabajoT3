@@ -220,7 +220,6 @@ fun ScrollP3(navController: NavController) {
             },
             bottomBar = { BottomBar(navController as NavHostController) }
         ) { innerPadding ->
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -238,7 +237,7 @@ fun ScrollP3(navController: NavController) {
                         )
                     }
                 }) {
-                    Text("Clic para notificación a Primera")
+                    Text("Clic para notificación a Primera Ventana")
                 }
 
                 Button(onClick = {
@@ -308,6 +307,7 @@ fun Tarjeta() {
 }
 
 // Para Carrusel (2)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CarouselExample_MultiBrowse() {
     data class CarouselItem(
@@ -427,6 +427,7 @@ fun PullToRefreshCustomStyleSample(
 }
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CarruselTarjetas() {
     data class CarouselItem(
@@ -444,7 +445,7 @@ fun CarruselTarjetas() {
             CarouselItem(4, R.drawable.tiburon, "gingerbread"),
         )
     }
-    val listaTarjetas = remember { mutableStateListOf<CardDefaults>() }
+    val listaTarjetas = remember { mutableStateListOf<String>() }
 
     HorizontalMultiBrowseCarousel(
         state = rememberCarouselState { items.count() },

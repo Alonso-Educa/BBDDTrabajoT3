@@ -7,32 +7,24 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = Estructura.Usuario.TABLE_NAME, indices = [Index(
-        value = [Estructura.Usuario.EMAIL], unique = true
-    )]
-) // Marca la clase como una entidad asociada a una tabla; email será único.
+    tableName = Estructura.Usuario.TABLE_NAME,
+    indices = [Index(value = [Estructura.Usuario.EMAIL], unique = true)]
+)
 data class UsuarioData(
 
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = Estructura.Usuario.IDUSUARIO) val idUsuario: Int = 0,
-    // Clave primaria autogenerada. El 0 permite crear el objeto sin asignar valor.
+    @PrimaryKey val idUsuario: String = "", // antes era Int, ahora String para Firebase UID
 
     @ColumnInfo(name = Estructura.Usuario.NOMBRE) val nombreUsuario: String,
-    // Nombre del usuario.
-
     @ColumnInfo(name = Estructura.Usuario.APELLIDOS) val apellidosUsuario: String,
-    // Apellidos del usuario.
-
     @ColumnInfo(name = Estructura.Usuario.INCORPORACION) val incorporacionUsuario: String,
-    // Fecha de incorporación.
-
     @ColumnInfo(name = Estructura.Usuario.EMAIL) val email: String,
-    // Email del usuario (con índice único).
-
     @ColumnInfo(name = Estructura.Usuario.SEXO) val sexo: String
 )
 
+
 @Entity(
-    tableName = Estructura.Sesion.TABLE_NAME, foreignKeys = [ForeignKey(
+    tableName = Estructura.Sesion.TABLE_NAME,
+    foreignKeys = [ForeignKey(
         // Crea una relación entre esta entidad y la tabla UsuarioData.
         entity = UsuarioData::class,
         // Define el campo de la tabla padre (UsuarioData) que será referenciado.
@@ -45,36 +37,39 @@ data class UsuarioData(
     )]
 )
 data class SesionData(
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = Estructura.Sesion.IDSESION) val idSesion: Int = 0,
-    // Clave primaria autogenerada, generando valores únicos incrementales.
-
-    @ColumnInfo(name = Estructura.Sesion.IDUSUARIO) val idUsuario: Int,
-    // Clave foránea hacia UsuarioData.idUsuario.
-
-    @ColumnInfo(name = Estructura.Sesion.FECHA_INICIO) val fechaInicio: String
-    // Momento en que se inició la sesión.
+    @PrimaryKey(autoGenerate = true) val idSesion: Int = 0,
+    val idUsuario: String, // antes Int
+    val fechaInicio: String
 )
 
+
 @Entity(
-    tableName = "AMISTADES", indices = [Index(value = ["idUsuario1", "idUsuario2"], unique = true)]
+    tableName = "AMISTADES",
+    indices = [Index(value = ["idUsuario1", "idUsuario2"], unique = true)]
 )
 data class AmistadData(
     @PrimaryKey(autoGenerate = true) val idAmistad: Int = 0,
-    val idUsuario1: Int,
-    val idUsuario2: Int
+    val idUsuario1: String,
+    val idUsuario2: String
 )
 
 @Entity(
-    tableName = "INMUEBLES", indices = [Index(value = ["idInmueble"], unique = true)]
+    tableName = "INMUEBLES",
+    foreignKeys = [ForeignKey(
+        entity = UsuarioData::class,
+        parentColumns = ["idUsuario"],
+        childColumns = ["idUsuario"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("idUsuario")]
 )
 data class InmueblesData(
-    @PrimaryKey(autoGenerate = true) val idInmueble: Int = 0,
-    // Clave foránea hacia UsuarioData.idUsuario.
-    @ColumnInfo(name = Estructura.Inmuebles.IDUSUARIO) val idUsuario: Int,
-    @ColumnInfo(name = Estructura.Inmuebles.TITULO) val titulo: String,
-    @ColumnInfo(name = Estructura.Inmuebles.DESCRIPCION) val descripcion: String,
-    @ColumnInfo(name = Estructura.Inmuebles.URLIMAGEN) val urlImagen: String,
-    @ColumnInfo(name = Estructura.Inmuebles.PRECIO) val precio: Double,
-    @ColumnInfo(name = Estructura.Inmuebles.TIPO) val tipo: String
+    @PrimaryKey(autoGenerate = true)
+    val idInmueble: Int = 0,
+    val idUsuario: String,
+    val titulo: String,
+    val descripcion: String,
+    val urlImagen: String,
+    val precio: Double,
+    val tipo: String
 )
-

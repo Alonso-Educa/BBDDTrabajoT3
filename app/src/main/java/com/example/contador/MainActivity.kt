@@ -64,8 +64,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val destino =
                 intent?.getStringExtra("destino") // Lee la información extra de destino del Intent que recibió el MainActivity
-            AppNavigation(destino) // Pasa el destino a AppNavigation para indicar la ventana que abrirá
-            //Prueba()
+//            AppNavigation(destino) // Pasa el destino a AppNavigation para indicar la ventana que abrir
+            AppNavigation()
         }
     }
 }

@@ -23,5 +23,5 @@ abstract class AppDB : RoomDatabase() {
     abstract fun sesionDao(): SesionDao
 
     abstract fun amistadDao(): AmistadDao
-//    abstract fun inmueblesDao(): InmueblesDao
+    abstract fun inmueblesDao(): InmueblesDao
 }

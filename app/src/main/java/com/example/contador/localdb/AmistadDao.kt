@@ -10,14 +10,15 @@ import androidx.room.Update
 @Dao
 interface AmistadDao {
 
-    // 🔹 Obtener todos los usuarios
-    @Query("SELECT * FROM AMISTADES  WHERE idUsuario1 != :idAmigo")
-    suspend fun getAmistadUsuario(idAmigo: Int): List<AmistadData>
+    // 🔹 Obtener todas las amistades de un usuario (idUsuario ahora es String)
+    @Query("SELECT * FROM AMISTADES WHERE idUsuario1 != :idAmigo")
+    suspend fun getAmistadUsuario(idAmigo: String): List<AmistadData>
 
-    // 🔹 Insertar usuario nuevo
+    // 🔹 Insertar nueva amistad
     @Insert
     suspend fun nuevaAmistad(amistad: AmistadData)
 
+    // 🔹 Eliminar amistad
     @Query(
         """
         DELETE FROM AMISTADES
@@ -26,10 +27,11 @@ interface AmistadDao {
     """
     )
     suspend fun eliminarAmistad(
-        idUsuario1: Int,
-        idUsuario2: Int
+        idUsuario1: String,
+        idUsuario2: String
     )
 
+    // 🔹 Obtener el último usuario con sesión activa
     @Query(
         """
         SELECT *
@@ -42,6 +44,7 @@ interface AmistadDao {
     )
     suspend fun getUsuarioSesionActual(): UsuarioData?
 
+    // 🔹 Comprobar si existe amistad entre dos usuarios
     @Query(
         """
         SELECT * FROM AMISTADES
@@ -50,6 +53,5 @@ interface AmistadDao {
         LIMIT 1
     """
     )
-    suspend fun existeAmistad(idUsuario: Int, idAmigo: Int): AmistadData?
+    suspend fun existeAmistad(idUsuario: String, idAmigo: String): AmistadData?
 }
-

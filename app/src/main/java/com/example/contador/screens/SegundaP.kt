@@ -59,7 +59,7 @@ fun ScrollP2(navController: NavController) {
                 },
             )
         },
-        bottomBar = { BottomBar(navController as NavHostController) }
+        bottomBar = { BottomBar(navController as NavHostController) } // declarado en terceraP
     ) { innerPadding ->
         Column(modifier = Modifier
             .fillMaxSize().padding(innerPadding)) {

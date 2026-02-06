@@ -50,7 +50,7 @@ fun ScrollP1(navController: NavController) {
                     titleContentColor = Color.White)
             )
         },
-        bottomBar = { BottomBar(navController as NavHostController) }
+        bottomBar = { BottomBar(navController as NavHostController) } // declarado en terceraP
     ){ innerPadding->
         Column(modifier = Modifier
             .fillMaxSize().padding(innerPadding)) {
