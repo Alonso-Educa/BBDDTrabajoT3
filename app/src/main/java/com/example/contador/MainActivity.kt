@@ -54,6 +54,7 @@ import android.R.attr.label
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import com.example.contador.navigation.AppNavigation
+import com.example.contador.navigation.AppNavigationNotificaciones
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -62,10 +63,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val destino =
-                intent?.getStringExtra("destino") // Lee la información extra de destino del Intent que recibió el MainActivity
-//            AppNavigation(destino) // Pasa el destino a AppNavigation para indicar la ventana que abrir
-            AppNavigation()
+            ContadorTheme {
+                val destino =
+                    intent?.getStringExtra("destino") // Lee la información extra de destino del Intent que recibió el MainActivity
+                AppNavigation()
+                // Pasa el destino a AppNavigation para indicar la ventana que abrir
+//                AppNavigationNotificaciones(destino) // Pasa el destino a AppNavigation para indicar la ventana que abrir
+            }
         }
     }
 }
@@ -224,8 +228,8 @@ fun Prueba() {
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun Notificacion() {
-    var titulo by remember { mutableStateOf("") }
-    var cuerpo by remember { mutableStateOf("") }
+//    var titulo by remember { mutableStateOf("") }
+//    var cuerpo by remember { mutableStateOf("") }
     val context = LocalContext.current // Para acceder al sistema
     val postNotificationPermission =
         rememberPermissionState(permission = Manifest.permission.POST_NOTIFICATIONS) // Control de permisos
@@ -237,26 +241,30 @@ fun Notificacion() {
             // que el usuario acepte o rechace
         }
     }
-    Column {
-        CampoNombre(
-            nombre = titulo,
-            onNombreCambiado = { nuevoNombre ->
-                titulo = nuevoNombre
-            },
-            txtlabel = "Título de la notificación"
-        )
-        CampoNombre(
-            nombre = cuerpo,
-            onNombreCambiado = { nuevoNombre ->
-                cuerpo = nuevoNombre
-            },
-            txtlabel = "Cuerpo de la notificación"
-        )
-        Button(onClick = {
-            notificationHandler.enviarNotificacionConDestino(titulo, cuerpo, "PrimeraP") // Luego
-            // notifica el mensaje creado
-        }) { Text(text = "Clic para una notificación personalizada ") }
-    }
+//    Column {
+//        CampoNombre(
+//            nombre = titulo,
+//            onNombreCambiado = { nuevoNombre ->
+//                titulo = nuevoNombre
+//            },
+//            txtlabel = "Título de la notificación"
+//        )
+//        CampoNombre(
+//            nombre = cuerpo,
+//            onNombreCambiado = { nuevoNombre ->
+//                cuerpo = nuevoNombre
+//            },
+//            txtlabel = "Cuerpo de la notificación"
+//        )
+//        Button(onClick = {
+//            notificationHandler.enviarNotificacionConDestino(titulo, cuerpo, "PrimeraP") // Luego
+//            // notifica el mensaje creado
+//        }) { Text(text = "Clic para una notificación personalizada ") }
+//    }
+    Button(onClick = {
+        notificationHandler.enviarNotificacionConDestino( "Título de la notificación", "Cuerpo de la notificación","PrimeraP") // Luego
+        // notifica el mensaje creado
+    }) { Text(text = "Clic para una notificación personalizada ") }
 }
 
 @Composable

@@ -47,6 +47,7 @@ class NotificationHandler(private val context: Context) {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("destino", destino) // Ventana a la que se irá al hacer clic en la notificación
         }
+        val notificationId = Random.nextInt()
         // PendingIntent (lo que se ejecuta al tocar la notificación), es decir, permiso para ejecutar el Intent
         val pendingIntent = PendingIntent.getActivity(
             context, // Quién (app) lo pide, el contexto
@@ -65,6 +66,6 @@ class NotificationHandler(private val context: Context) {
             .setAutoCancel(true) // Que la notificación se descarte (borre) al tocarla
             .setContentIntent(pendingIntent) // Abre la aplicación al hacer clic
             .build() // Crea objeto final
-        notificationManager.notify(Random.nextInt(), notification)
+        notificationManager.notify(notificationId, notification)
     }
 }

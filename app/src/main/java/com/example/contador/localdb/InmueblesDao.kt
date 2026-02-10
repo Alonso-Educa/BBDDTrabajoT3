@@ -11,33 +11,33 @@ import androidx.room.Update
 interface InmueblesDao {
     // 🔹 Obtener todos los inmuebles de todos los usuarios
     @Query("SELECT * FROM INMUEBLES")
-    suspend fun getListaInmueblesTodos(): List<InmueblesData>
+     fun getListaInmueblesTodos(): List<InmueblesData>
 
     // 🔹 Obtener todos los inmuebles de un usuario
     @Query("SELECT * FROM INMUEBLES WHERE idUsuario = :idUsuario")
-    suspend fun getInmueblesDeUsuario(idUsuario: String): List<InmueblesData>
+     fun getInmueblesDeUsuario(idUsuario: String): List<InmueblesData>
 
     // 🔹 Obtener todos los inmuebles excepto los del usuario actual
     @Query("SELECT * FROM INMUEBLES WHERE idUsuario != :idUsuario")
-    suspend fun getInmueblesExcluyendoUsuario(idUsuario: String): List<InmueblesData>
+     fun getInmueblesExcluyendoUsuario(idUsuario: String): List<InmueblesData>
 
     // 🔹 Obtener un inmueble por id
     @Query("SELECT * FROM INMUEBLES WHERE idInmueble = :idInmueble LIMIT 1")
-    suspend fun getInmueble(idInmueble: Int): InmueblesData?
+     fun getInmueble(idInmueble: Int): InmueblesData?
 
     // 🔹 Comprobar si existe un inmueble por id
     @Query("SELECT * FROM INMUEBLES WHERE idInmueble = :idInmueble LIMIT 1")
-    suspend fun existeInmueble(idInmueble: Int): InmueblesData?
+     fun existeInmueble(idInmueble: Int): InmueblesData?
 
     // 🔹 Insertar nuevo inmueble
     @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun nuevoInmueble(inmueble: InmueblesData)
+     fun nuevoInmueble(inmueble: InmueblesData)
 
     // 🔹 Actualizar inmueble existente
     @Update
-    suspend fun actualizaInmueble(inmueble: InmueblesData)
+     fun actualizaInmueble(inmueble: InmueblesData)
 
     // 🔹 Eliminar inmueble por id
     @Query("DELETE FROM INMUEBLES WHERE idInmueble = :idInmueble")
-    suspend fun eliminarInmueble(idInmueble: Int)
+     fun eliminarInmueble(idInmueble: Int)
 }

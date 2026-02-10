@@ -31,7 +31,7 @@ interface SesionDao {
     WHERE idUsuario = :idUsuario
     """
     )
-    suspend fun eliminarSesionUsuario(idUsuario: String)
+     fun eliminarSesionUsuario(idUsuario: String)
 
     // 🔹 Obtener usuario actual de sesión (join)
     @Query("""
@@ -40,6 +40,8 @@ interface SesionDao {
     INNER JOIN ${Estructura.Sesion.TABLE_NAME} s ON u.idUsuario = s.idUsuario
     LIMIT 1
 """)
-    suspend fun getUsuarioSesionActual(): UsuarioData?
+     fun getUsuarioSesionActual(): UsuarioData?
 
+    @Query("DELETE FROM ${Estructura.Sesion.TABLE_NAME}")
+     fun eliminarTodasLasSesiones()
 }

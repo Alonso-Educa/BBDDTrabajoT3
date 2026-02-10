@@ -142,19 +142,22 @@ fun Inicio(navController: NavController) {
                             val usuarioDoc = result.documents[0]
                             val pwd = usuarioDoc.getString("password")
                             val emailUser = usuarioDoc.getString("email")
-                            val idUsuario = usuarioDoc.getString("idUsuario")
-                            val nombreUsuario = usuarioDoc.getString("nombreUsuario")
+                            val idUsuario = usuarioDoc.id              // 🔹 ID del documento
+                            val nombreUsuario = usuarioDoc.getString("nombre")
+                            val apellidos = usuarioDoc.getString("apellidos")
+                            val sexo = usuarioDoc.getString("sexo")
+                            val incorporacion = usuarioDoc.getString("incorporacion")
 
-                            if (pwd != null && emailUser != null && idUsuario != null) {
+                            if (pwd != null && emailUser != null) {
                                 if (pwd == contrasena.text) {
                                     // ✅ Usuario válido, guardar en Room si no existe
                                     val usuarioLocal = UsuarioData(
                                         idUsuario = idUsuario,
                                         nombreUsuario = nombreUsuario ?: "",
-                                        apellidosUsuario = usuarioDoc.getString("apellidosUsuario") ?: "",
+                                        apellidosUsuario = apellidos ?: "",
                                         email = emailUser,
-                                        sexo = usuarioDoc.getString("sexo") ?: "",
-                                        incorporacionUsuario = usuarioDoc.getString("incorporacionUsuario") ?: ""
+                                        sexo = sexo ?: "",
+                                        incorporacionUsuario = incorporacion ?: ""
                                     )
                                     usuarioDao.nuevoUsuario(usuarioLocal) // reemplaza si ya existía
 
@@ -165,6 +168,7 @@ fun Inicio(navController: NavController) {
                                         )
                                     val sesion =
                                         SesionData(idUsuario = idUsuario, fechaInicio = fecha)
+                                    sesionDao.eliminarTodasLasSesiones()
                                     sesionDao.nuevaSesion(sesion)
 
                                     Toast.makeText(
@@ -172,7 +176,7 @@ fun Inicio(navController: NavController) {
                                         "Inicio de sesión correcto",
                                         Toast.LENGTH_SHORT
                                     ).show()
-                                    navController.navigate(AppScreens.Resultados.route) {
+                                    navController.navigate(AppScreens.MenuPrincipal.route) {
                                         popUpTo(0) { inclusive = true }
                                     }
 
@@ -219,8 +223,8 @@ fun Inicio(navController: NavController) {
 
             Spacer(Modifier.height(10.dp))
 
-            Button(onClick = { navController.navigate(AppScreens.Resultados.route) }) {
-                Text("Ir a resultados")
+            Button(onClick = { navController.navigate(AppScreens.MenuPrincipal.route) }) {
+                Text("Ir al Menú Principal")
             }
         }
     }

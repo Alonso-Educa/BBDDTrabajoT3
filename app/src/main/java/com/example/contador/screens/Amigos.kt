@@ -62,6 +62,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import coil.compose.AsyncImage
+import com.google.firebase.firestore.FirebaseFirestore
+
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,6 +85,7 @@ fun Amigos(navController: NavController) {
     }
     // Scope para clicks y eventos
     val scope = rememberCoroutineScope()
+    val firestore = FirebaseFirestore.getInstance()
 
     // ---------------- ESTADOS ----------------
     var listaUsuarios by remember {
@@ -116,9 +119,31 @@ fun Amigos(navController: NavController) {
     LaunchedEffect(idSesionActual) {
         if (idSesionActual.isNotEmpty()) {
 
-            listaUsuarios = db.usuarioDao()
-                .getListaUsuariosPorId(idSesionActual)
+            // 🔥 Cargar usuarios desde Firebase
+            firestore.collection("usuarios")
+                .get()
+                .addOnSuccessListener { result ->
+                    val lista = result.documents.mapNotNull { doc ->
+                        try {
+                            UsuarioData(
+                                idUsuario = doc.id, // 👈 el ID es el nombre del documento
+                                nombreUsuario = doc.getString("nombre") ?: "",
+                                apellidosUsuario = doc.getString("apellidos") ?: "",
+                                email = doc.getString("email") ?: "",
+                                sexo = doc.getString("sexo") ?: "",
+                                incorporacionUsuario = doc.getString("incorporacion") ?: ""
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    listaUsuarios = lista.filter { it.idUsuario != idSesionActual } // ❌ quita tu propio usuario
+                }
+                .addOnFailureListener {
+                    Toast.makeText(context, "Error cargando usuarios", Toast.LENGTH_SHORT).show()
+                }
 
+            // ⭐ Cargar amistades desde Room (solo relación local)
             val listaAmistades = db.amistadDao()
                 .getAmistadUsuario(idSesionActual)
 
@@ -127,6 +152,7 @@ fun Amigos(navController: NavController) {
             }
         }
     }
+
 
     // ---------------- UI ----------------
 
@@ -178,23 +204,18 @@ fun Amigos(navController: NavController) {
                             append(user.apellidosUsuario.first().uppercase())
                         }
                     }
-                    AsyncImage(
-                        model = "https://i.pinimg.com/originals/ce/2a/a4/ce2aa4b802e2645bb741353f3e519d9f.jpg",
-                        contentDescription = "Imagen de un león",
-                        modifier = Modifier.size(40.dp)
-                    )
 
 
                     Box(
                         modifier = Modifier
                             .size(54.dp)
                             .background(
-                                MaterialTheme.colorScheme.primaryContainer,
+                                MaterialTheme.colorScheme.tertiary,
                                 CircleShape
                             )
                             .border(
                                 1.dp,
-                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.secondary,
                                 CircleShape
                             ),
                         contentAlignment = Alignment.Center

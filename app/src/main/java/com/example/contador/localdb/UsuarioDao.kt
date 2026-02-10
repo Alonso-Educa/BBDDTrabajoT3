@@ -27,7 +27,7 @@ interface UsuarioDao {
     fun getUnUser(email: String): UsuarioData?
 
     // 🔹 Insertar usuario nuevo
-    @Insert(onConflict = OnConflictStrategy.ABORT)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun nuevoUsuario(usuario: UsuarioData)
 
     // 🔹 Actualizar usuario existente

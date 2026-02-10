@@ -36,6 +36,7 @@ import com.example.contador.localdb.Estructura
 import com.example.contador.localdb.SesionData
 import com.example.contador.localdb.UsuarioData
 import com.example.contador.navigation.AppScreens
+import com.example.contador.notification.NotificationHandler
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -67,8 +68,8 @@ fun Formulario(
     val contrasena = rememberTextFieldState("")
     var passVisible by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
-
     val emailPattern = Regex("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}")
+    val notificationHandler = NotificationHandler(context)
 
     // Firebase
     val dbFirebase = FirebaseFirestore.getInstance()
@@ -228,6 +229,10 @@ fun Formulario(
                                     .addOnSuccessListener { println("Usuario guardado en Firebase con ID automático") }
                                     .addOnFailureListener { e -> println("Error Firebase: ${e.message}") }
 
+                                // Envía las notificaciones correspondientes después de crear la cuenta
+                                notificationHandler.enviarNotificacionSimple(
+                                    "¡Acabas de crear un nuevo usuario!",
+                                    "Inicia sesión para acceder a tu perfil")
                                 showToast(context, "Usuario registrado correctamente. Inicie sesión")
                                 navController.navigate(AppScreens.Inicio.route)
                             }

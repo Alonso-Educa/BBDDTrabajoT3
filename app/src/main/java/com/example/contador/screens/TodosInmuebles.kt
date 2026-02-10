@@ -3,6 +3,7 @@ package com.example.contador.screens
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,6 +12,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.room.Room
@@ -58,7 +62,7 @@ fun TodosInmuebles(navController: NavController) {
     var usuarioSesion by remember { mutableStateOf<UsuarioData?>(null) }
     var listaInmuebles by remember { mutableStateOf<List<InmueblesData>>(emptyList()) }
     var estaActivo by remember { mutableStateOf<Int?>(null) }
-    var favoritos by remember { mutableStateOf(mutableSetOf<Int>()) }
+    var favoritos by remember { mutableStateOf(setOf<Int>()) }
 
     var idUsuarioSesionActual by remember { mutableStateOf("") }
 
@@ -67,30 +71,54 @@ fun TodosInmuebles(navController: NavController) {
         val sesion = sesionDao.getUsuarioSesionActual()
         idUsuarioSesionActual = sesion?.idUsuario ?: ""
         usuarioSesion = sesion?.let { usuarioDao.getUsuarioPorId(it.idUsuario) }
-        listaInmuebles = inmuebleDao.getListaInmueblesTodos()
+
+        firestore.collection("inmuebles")
+            .get()
+            .addOnSuccessListener { result ->
+                val lista = result.documents.mapNotNull { doc ->
+                    try {
+                        InmueblesData(
+                            idInmueble = doc.id.hashCode(), // ID local temporal
+                            idUsuario = doc.getString("idUsuario") ?: "",
+                            titulo = doc.getString("titulo") ?: "",
+                            descripcion = doc.getString("descripcion") ?: "",
+                            urlImagen = doc.getString("urlImagen") ?: "",
+                            precio = doc.getDouble("precio") ?: 0.0,
+                            tipo = doc.getString("tipo") ?: ""
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                listaInmuebles = lista
+            }
+            .addOnFailureListener {
+                Toast.makeText(context, "Error cargando inmuebles", Toast.LENGTH_SHORT).show()
+            }
     }
+
 
     // UI
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Todos los Inmuebles") },
+                title = { Text("Todos los Inmuebles", fontSize = 15.sp) },
+                colors = topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = Color.White
+                ),
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
                     }
                 },
                 actions = {
-                    // Ir a MisInmuebles
-                    IconButton(onClick = { navController.navigate(AppScreens.MisInmuebles.route) }) {
-                        Icon(Lucide.HousePlus, contentDescription = "Mis inmuebles")
-                    }
 
                     // Ir a perfil
                     IconButton(onClick = {
-                        navController.navigate(AppScreens.Resultados.route)
+                        navController.navigate(AppScreens.MenuPrincipal.route)
                     }) {
-                        Icon(Lucide.CircleUserRound, contentDescription = "Perfil")
+                        Icon(Icons.Default.Home, contentDescription = "Perfil")
                     }
 
                     // Cerrar sesión
@@ -107,6 +135,22 @@ fun TodosInmuebles(navController: NavController) {
                         }
                     }) {
                         Icon(Icons.Default.Logout, contentDescription = "Cerrar sesión")
+                    }
+                    // Inicial usuario
+                    usuarioSesion?.let {
+                        val inicial = it.nombreUsuario.firstOrNull()?.uppercase() ?: "U"
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.tertiary, CircleShape
+                                )
+                                .border(
+                                    1.dp, MaterialTheme.colorScheme.secondary, CircleShape
+                                ), contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = inicial, style = MaterialTheme.typography.titleMedium)
+                        }
                     }
                 }
             )
@@ -151,8 +195,11 @@ fun TodosInmuebles(navController: NavController) {
 
                     // Botón de favorito
                     IconButton(onClick = {
-                        if (favoritos.contains(inmueble.idInmueble)) favoritos.remove(inmueble.idInmueble)
-                        else favoritos.add(inmueble.idInmueble)
+                        favoritos = if (favoritos.contains(inmueble.idInmueble)) {
+                            favoritos - inmueble.idInmueble
+                        } else {
+                            favoritos + inmueble.idInmueble
+                        }
                     }) {
                         Icon(
                             imageVector = if (favoritos.contains(inmueble.idInmueble))
@@ -162,7 +209,7 @@ fun TodosInmuebles(navController: NavController) {
                         )
                     }
                 }
-                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
             }
         }
     }

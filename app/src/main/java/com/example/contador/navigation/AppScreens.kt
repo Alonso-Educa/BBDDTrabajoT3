@@ -6,10 +6,12 @@ sealed class AppScreens (val route: String) {
     object TerceraP: AppScreens("TerceraP")
     object Inicio: AppScreens("Inicio")
     object Formulario: AppScreens("Formulario")
-    object Resultados: AppScreens("Resultados")
+    object MenuPrincipal: AppScreens("MenuPrincipal")
     object Amigos: AppScreens("Amigos")
     object MisInmuebles: AppScreens("MisInmuebles")
     object TodosInmuebles: AppScreens("TodosInmuebles")
+    object MisPublicaciones: AppScreens("MisPublicaciones")
+    object TodasPublicaciones: AppScreens("TodasPublicaciones")
 }
 
 

@@ -73,3 +73,23 @@ data class InmueblesData(
     val precio: Double,
     val tipo: String
 )
+
+@Entity(
+    tableName = "PUBLICACIONES",
+    foreignKeys = [ForeignKey(
+        entity = UsuarioData::class,
+        parentColumns = ["idUsuario"],
+        childColumns = ["idUsuario"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("idUsuario")]
+)
+data class PublicacionesData(
+    @PrimaryKey(autoGenerate = true)
+    val idPublicacion: Int = 0,
+    val idUsuario: String,
+    val titulo: String,
+    val descripcion: String,
+    val urlImagen: String,
+    val nombreUsuario: String
+)
