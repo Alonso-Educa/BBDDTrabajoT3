@@ -1,6 +1,7 @@
 package com.example.contador.screens
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,19 +19,25 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -70,6 +77,10 @@ import java.util.Date
 import java.util.Locale
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment.Companion.CenterHorizontally
+import androidx.compose.ui.window.Dialog
+import com.composables.icons.lucide.HousePlus
+import com.composables.icons.lucide.Lucide
 import com.example.contador.navigation.AppScreens
 import kotlinx.coroutines.launch
 
@@ -172,10 +183,11 @@ fun MenuPrincipal(navController: NavController) {
                             contentDescription = "Cerrar sesión"
                         )
                     }
-                    usuarioSesion?.let {
-                        val inicial = buildString {
-                            append(it.nombreUsuario.first().uppercase())
-                        }
+                    usuarioSesion?.let { usuario ->
+                        var showCardDialog by remember { mutableStateOf(false) }
+
+                        // 🔹 Icono circular clicable
+                        val inicial = usuario.nombreUsuario.firstOrNull()?.uppercase() ?: "U"
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
@@ -188,15 +200,87 @@ fun MenuPrincipal(navController: NavController) {
                                     MaterialTheme.colorScheme.secondary,
                                     CircleShape
                                 )
-                                .clickable { /*TODO*/ },
-
-                            ) {
+                                .clickable { showCardDialog = true } // abrir diálogo
+                        ) {
                             Text(
                                 modifier = Modifier.align(Alignment.Center),
                                 text = inicial,
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
 
-                                )
+                        // 🔹 Dialog con tarjeta de usuario
+                        if (showCardDialog) {
+                            Dialog(onDismissRequest = { showCardDialog = false }) {
+                                Card(
+                                    shape = MaterialTheme.shapes.large,
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    elevation = CardDefaults.cardElevation(8.dp),
+                                    modifier = Modifier.padding(10.dp)
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally
+//                                        verticalArrangement = Arrangement.Center,
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .padding(16.dp)
+                                                .widthIn(min = 200.dp, max = 300.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(verticalArrangement = Arrangement.Center) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(60.dp)
+                                                        .background(
+                                                            MaterialTheme.colorScheme.tertiary,
+                                                            CircleShape
+                                                        )
+                                                        .border(
+                                                            1.dp,
+                                                            MaterialTheme.colorScheme.secondary,
+                                                            CircleShape
+                                                        )
+                                                        .clickable {
+                                                            showCardDialog = true
+                                                        } // abrir diálogo
+                                                ) {
+                                                    Text(
+                                                        modifier = Modifier.align(Alignment.Center),
+                                                        text = inicial,
+                                                        style = MaterialTheme.typography.titleMedium
+                                                    )
+                                                }
+                                            }
+                                            Column(modifier = Modifier.padding(16.dp)) {
+                                                Text(
+                                                    text = "${usuario.nombreUsuario} ${usuario.apellidosUsuario}",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(
+                                                    "Email: ${usuario.email}",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    "Sexo: ${usuario.sexo}",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    "Incorporación: ${usuario.incorporacionUsuario}",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            }
+                                        }
+                                        Button(
+                                            modifier = Modifier.padding(bottom = 16.dp),
+                                            onClick = { showCardDialog = false }) {
+                                            Text("Cerrar")
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 },
@@ -287,101 +371,60 @@ fun MenuPrincipal(navController: NavController) {
                         )
                     }
 
-                    if (expandido) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                    AnimatedVisibility(visible = expandido) {
+                        Column(modifier = Modifier.align(CenterHorizontally)) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                Modifier
+                                    .padding(10.dp)
+                                    .align(CenterHorizontally)
+                            ) {
+                                Button(
+                                    onClick = { navController.navigate(AppScreens.Amigos.route) },
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.People,
+                                        contentDescription = "Amigos"
+                                    )
+                                    Text(" Amigos")
+                                }
 
-                        Row(Modifier.padding(10.dp)){
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                OutlinedButton(
+                                    onClick = { navController.navigate(AppScreens.MisInmuebles.route) },
+                                ) {
+                                    Icon(
+                                        imageVector = Lucide.HousePlus,
+                                        contentDescription = "Inmuebles"
+                                    )
+                                    Text(" Inmuebles")
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
                             Button(
-                                onClick = {
-                                    navController.navigate(AppScreens.Amigos.route)
-                                },
+                                onClick = { navController.navigate(AppScreens.MisPublicaciones.route) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color.Magenta, // Fondo del botón
+                                    contentColor = Color.White      // Color del texto / icono
+                                ), modifier = Modifier.align(CenterHorizontally)
                             ) {
-                                Text("Mis Amistades")
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = "Camara"
+                                )
+                                Text(" Instagram")
                             }
-                            Text("   ")
-
-                            OutlinedButton (
-                                onClick = {
-                                    navController.navigate(AppScreens.MisInmuebles.route)
-                                },
-                            ) {
-                                Text("Mis Inmuebles")
-                            }
-
-//                            OutlinedButton (
-//                                onClick = {
-//                                    navController.navigate(AppScreens.MisPublicaciones.route)
-//                                },
-//                            ) {
-//                                Text("Mis Publicaciones")
-//                            }
                         }
-
-
 
                         Spacer(modifier = Modifier.height(6.dp))
                     }
                 }
             }
 
-
-
             Spacer(modifier = Modifier.width(12.dp))
-
-//            LazyColumn {
-//                items(listaUsuarios) { user ->
-//
-//                    Row(
-//                        modifier = Modifier
-//                            .fillMaxWidth()
-//                            .padding(8.dp),
-//                        verticalAlignment = Alignment.CenterVertically
-//                    ) {
-//
-//                        Text(
-//                            text = user.nombreUsuario,
-//                            modifier = Modifier.weight(1f)
-//                        )
-//
-//                        Text(
-//                            text = user.email,
-//                            modifier = Modifier.weight(2f)
-//                        )
-//
-//                        usuarioSesion?.let { user ->
-//                            IconButton(onClick = {
-//                                usuarioEditando = user
-//                                nombre = user.nombreUsuario
-//                                apellidos = user.apellidosUsuario
-//                                email = user.email
-//                                incorporacion = user.incorporacionUsuario
-//                                sexo = user.sexo
-//                                showDialog = true
-//                            }) {
-//                                Icon(Icons.Default.Edit, contentDescription = "Editar")
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-
-//            Button(
-//                modifier = Modifier.padding(16.dp),
-//                onClick = {
-//                    navController.navigate(AppScreens.Amigos.route)
-//                }
-//            ) {
-//                Text("Mis Amistades")
-//            }
-
-//            Button(
-//                modifier = Modifier.padding(16.dp),
-//                onClick = {
-//                    navController.navigate(AppScreens.MisInmuebles.route)
-//                }
-//            ) {
-//                Text("Mis Inmuebles")
-//            }
         }
     }
 

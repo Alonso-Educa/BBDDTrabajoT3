@@ -78,7 +78,7 @@ fun Inicio(navController: NavController) {
         topBar = {
             TopAppBar(
                 modifier = Modifier.height(60.dp),
-                title = { Text(text = "Iniciar sesión", fontSize = 15.sp) },
+                title = { Text(text = "Iniciar sesión", fontSize = 20.sp) },
                 colors = topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White

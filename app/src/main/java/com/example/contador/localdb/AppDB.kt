@@ -5,7 +5,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     // Indica que esta clase define una base de datos Room.
-    entities = [UsuarioData::class,SesionData::class, AmistadData::class, InmueblesData::class],
+    entities = [UsuarioData::class,SesionData::class, AmistadData::class, InmueblesData::class, PublicacionesData::class],
     // La base de datos contiene una tabla representada por la entidad UsuarioData.
     // Si hubieran más tablas, se añadirían así:
     // [UsuariosData::class, SesionData::class]
@@ -24,4 +24,5 @@ abstract class AppDB : RoomDatabase() {
 
     abstract fun amistadDao(): AmistadDao
     abstract fun inmueblesDao(): InmueblesDao
+    abstract fun publicacionesDao(): PublicacionesDao
 }

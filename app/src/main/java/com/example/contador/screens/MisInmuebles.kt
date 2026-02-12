@@ -23,17 +23,22 @@ import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.room.Room
@@ -84,6 +89,9 @@ fun MisInmuebles(navController: NavController) {
     var urlImagen by remember { mutableStateOf("") }
     var precio by remember { mutableStateOf("") }
     var tipo by remember { mutableStateOf("Alquiler") }
+    var showSnackBar by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
 
     // Cargar sesión y lista de inmuebles
     LaunchedEffect(Unit) {
@@ -94,88 +102,178 @@ fun MisInmuebles(navController: NavController) {
     }
 
     // UI
-    Scaffold(topBar = {
-        TopAppBar(
-            title = { Text("Mis Inmuebles", fontSize = 20.sp) }, colors = topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.primary, titleContentColor = Color.White
-            ), navigationIcon = {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
-                }
-            }, actions = {
-
-                // Regresar al menú
-                IconButton(onClick = {
-                    navController.navigate(AppScreens.MenuPrincipal.route)
-                }) {
-                    Icon(Icons.Default.Home, contentDescription = "Todos los inmuebles")
-                }
-
-                // Cerrar sesión
-                IconButton(onClick = {
-                    scope.launch {
-                        if (idUsuarioSesionActual.isNotEmpty()) {
-                            sesionDao.eliminarSesionUsuario(idUsuarioSesionActual)
-                        }
-                        navController.navigate(AppScreens.Inicio.route) {
-                            popUpTo(0) { inclusive = true }
-                            Toast.makeText(context, "Cerrando sesión", Toast.LENGTH_SHORT).show()
-                        }
+    Scaffold(
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState)
+        },
+        topBar = {
+            TopAppBar(
+                title = { Text("Mis Inmuebles", fontSize = 20.sp) }, colors = topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = Color.White
+                ), navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
                     }
-                }) {
-                    Icon(Icons.Default.Logout, contentDescription = "Cerrar sesión")
-                }
+                }, actions = {
 
-                // Inicial usuario
-                usuarioSesion?.let {
-                    val inicial = it.nombreUsuario.firstOrNull()?.uppercase() ?: "U"
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                MaterialTheme.colorScheme.tertiary, CircleShape
+                    // Regresar al menú
+                    IconButton(onClick = {
+                        navController.navigate(AppScreens.MenuPrincipal.route)
+                    }) {
+                        Icon(Icons.Default.Home, contentDescription = "Regresar al menú principal")
+                    }
+
+                    // Cerrar sesión
+                    IconButton(onClick = {
+                        scope.launch {
+                            if (idUsuarioSesionActual.isNotEmpty()) {
+                                sesionDao.eliminarSesionUsuario(idUsuarioSesionActual)
+                            }
+                            navController.navigate(AppScreens.Inicio.route) {
+                                popUpTo(0) { inclusive = true }
+                                Toast.makeText(context, "Cerrando sesión", Toast.LENGTH_SHORT)
+                                    .show()
+                            }
+                        }
+                    }) {
+                        Icon(Icons.Default.Logout, contentDescription = "Cerrar sesión")
+                    }
+
+                    // Inicial usuario
+                    usuarioSesion?.let { usuario ->
+                        var showCardDialog by remember { mutableStateOf(false) }
+
+                        // 🔹 Icono circular clicable
+                        val inicial = usuario.nombreUsuario.firstOrNull()?.uppercase() ?: "U"
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.tertiary,
+                                    CircleShape
+                                )
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.secondary,
+                                    CircleShape
+                                )
+                                .clickable { showCardDialog = true } // abrir diálogo
+                        ) {
+                            Text(
+                                modifier = Modifier.align(Alignment.Center),
+                                text = inicial,
+                                style = MaterialTheme.typography.titleMedium
                             )
-                            .border(
-                                1.dp, MaterialTheme.colorScheme.secondary, CircleShape
-                            ), contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = inicial, style = MaterialTheme.typography.titleMedium)
+                        }
+
+                        // 🔹 Dialog con tarjeta de usuario
+                        if (showCardDialog) {
+                            Dialog(onDismissRequest = { showCardDialog = false }) {
+                                Card(
+                                    shape = MaterialTheme.shapes.large,
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    elevation = CardDefaults.cardElevation(8.dp),
+                                    modifier = Modifier.padding(10.dp)
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally
+//                                        verticalArrangement = Arrangement.Center,
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .padding(16.dp)
+                                                .widthIn(min = 200.dp, max = 300.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(verticalArrangement = Arrangement.Center) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(60.dp)
+                                                        .background(
+                                                            MaterialTheme.colorScheme.tertiary,
+                                                            CircleShape
+                                                        )
+                                                        .border(
+                                                            1.dp,
+                                                            MaterialTheme.colorScheme.secondary,
+                                                            CircleShape
+                                                        )
+                                                        .clickable {
+                                                            showCardDialog = true
+                                                        } // abrir diálogo
+                                                ) {
+                                                    Text(
+                                                        modifier = Modifier.align(Alignment.Center),
+                                                        text = inicial,
+                                                        style = MaterialTheme.typography.titleMedium
+                                                    )
+                                                }
+                                            }
+                                            Column(modifier = Modifier.padding(16.dp)) {
+                                                Text(
+                                                    text = "${usuario.nombreUsuario} ${usuario.apellidosUsuario}",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(
+                                                    "Email: ${usuario.email}",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    "Sexo: ${usuario.sexo}",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    "Incorporación: ${usuario.incorporacionUsuario}",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            }
+                                        }
+                                        Button(
+                                            modifier = Modifier.padding(bottom = 16.dp),
+                                            onClick = { showCardDialog = false }) {
+                                            Text("Cerrar")
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                }
-            })
-    }, floatingActionButton = {
-        FloatingActionButton(
-            onClick = {
-                inmuebleEditando = null
-                titulo = ""
-                descripcion = ""
-                urlImagen = ""
-                precio = ""
-                tipo = "Alquiler"
-                showDialog = true
-            },
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onTertiary
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Añadir inmueble")
-        }
-    }, bottomBar = { BottomBarInmuebles(navController as NavHostController) }) { padding ->
+                })
+        }, floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    inmuebleEditando = null
+                    titulo = ""
+                    descripcion = ""
+                    urlImagen = ""
+                    precio = ""
+                    tipo = "Alquiler"
+                    showDialog = true
+                },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onTertiary
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Añadir inmueble")
+            }
+        }, bottomBar = { BottomBarInmuebles(navController as NavHostController) }) { padding ->
         // Lista de inmuebles
         Column(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
         ) {
-
             Text(
                 text = "Galería de imágenes de tus inmuebles",
                 modifier = Modifier.padding(8.dp),
                 fontWeight = FontWeight.Bold
             )
 
-            // Lista de inmuebles
+            // Carrusel de imágenes de los inmuebles del usuario
             CarruselInmuebles(
-                inmuebles = inmuebleDao.getInmueblesDeUsuario(idUsuarioSesionActual)
+                inmuebles = listaInmuebles
             )
 
             Text(
@@ -215,12 +313,11 @@ fun MisInmuebles(navController: NavController) {
                                     .weight(1f)
                             ) {
                                 Text(inmueble.titulo, fontWeight = FontWeight.Bold)
-                                Text(
-                                    inmueble.descripcion,
+                                Text("Descripción: ${inmueble.descripcion}",
                                     maxLines = 3,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Text("${inmueble.precio} €")
+                                Text("Precio: ${inmueble.precio} €")
                                 Text("Tipo: ${inmueble.tipo}")
                             }
 
@@ -260,6 +357,7 @@ fun MisInmuebles(navController: NavController) {
                     }, onConfirm = {
                         scope.launch {
                             val id = inmuebleEditando!!.idInmueble
+                            val inmuebleRecuperar = inmuebleEditando
 
                             inmuebleDao.eliminarInmueble(id)
 
@@ -276,6 +374,52 @@ fun MisInmuebles(navController: NavController) {
 
                             showDialogEliminar = false
                             inmuebleEditando = null
+                            val result = snackbarHostState
+                                .showSnackbar(
+                                    message = "¿Deseas deshacer la eliminación del Inmueble?",
+                                    actionLabel = "Deshacer",
+                                    // Defaults to SnackbarDuration.Short
+                                    duration = SnackbarDuration.Long
+                                )
+                            when (result) {
+                                SnackbarResult.ActionPerformed -> {
+                                    inmuebleRecuperar?.let {
+                                        inmuebleDao.nuevoInmueble(it)
+                                    }
+
+                                    // Crear documento con ID único en Firebase
+                                    val docRef = firestore.collection("inmuebles").document()
+                                    val dataFirebase = mapOf(
+                                        "idInmueble" to docRef.id,
+                                        "idUsuario" to idUsuarioSesionActual,
+                                        "titulo" to titulo,
+                                        "descripcion" to descripcion,
+                                        "urlImagen" to urlImagen,
+                                        "precio" to precio.toDoubleOrNull(),
+                                        "tipo" to tipo
+                                    )
+
+                                    docRef.set(dataFirebase).addOnSuccessListener {
+                                        Toast.makeText(
+                                            context,
+                                            "Inmueble subido a Firebase",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }.addOnFailureListener { e ->
+                                        Toast.makeText(
+                                            context,
+                                            "Error Firebase: ${e.message}",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                    listaInmuebles = inmuebleDao.getInmueblesDeUsuario(idUsuarioSesionActual)
+                                    showSnackBar = false
+                                }
+
+                                SnackbarResult.Dismissed -> {
+                                    showSnackBar = false
+                                }
+                            }
                         }
                     }, titulo = inmuebleEditando!!.titulo
                 )

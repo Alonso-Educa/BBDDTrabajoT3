@@ -59,9 +59,20 @@ import androidx.compose.ui.res.stringResource
 import coil.compose.AsyncImagePainter.State.Empty.painter
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
+import com.example.contador.navigation.AppScreens
 import com.google.firebase.firestore.FirebaseFirestore
 
 
@@ -105,6 +116,9 @@ fun Amigos(navController: NavController) {
             ?.idUsuario ?: ""
     }
 
+    var idUsuarioSesionActual by remember { mutableStateOf("") }
+    var usuarioSesion by remember { mutableStateOf<UsuarioData?>(null) }
+
 //    var usuarioSesion by remember { mutableStateOf<UsuarioData?>(null) }
 //
 //    LaunchedEffect(Unit) {
@@ -113,6 +127,16 @@ fun Amigos(navController: NavController) {
 //
 //
 //    }getListaUsuarios getAmistadUsuario
+
+    LaunchedEffect(Unit) {
+        idUsuarioSesionActual = db.sesionDao()
+            .getUsuarioSesionActual()
+            ?.idUsuario ?: ""
+    }
+
+    LaunchedEffect(Unit) {
+        usuarioSesion = db.sesionDao().getUsuarioSesionActual()
+    }
 
 
     // Usuarios + amistades
@@ -177,7 +201,143 @@ fun Amigos(navController: NavController) {
                             contentDescription = "Volver"
                         )
                     }
-                }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        scope.launch {
+                            navController.navigate(AppScreens.Inicio.route) {
+                                popUpTo(0) { inclusive = true }
+                                Toast.makeText(context, "Saliendo al menú", Toast.LENGTH_SHORT)
+                                    .show()
+                            }
+                        }
+                    }) {
+                        Icon(
+                            imageVector = Icons.Filled.Menu,
+                            contentDescription = "Salir al menú"
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            scope.launch {
+                                if (idUsuarioSesionActual.isNotEmpty()) {
+                                    db.sesionDao().eliminarSesionUsuario(idUsuarioSesionActual)
+                                }
+
+                                navController.navigate(AppScreens.Inicio.route) {
+                                    popUpTo(0) { inclusive = true }
+                                    Toast.makeText(context, "Cerrando sesión", Toast.LENGTH_SHORT)
+                                        .show()
+                                }
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Logout,
+                            contentDescription = "Cerrar sesión"
+                        )
+                    }
+                    usuarioSesion?.let { usuario ->
+                        var showCardDialog by remember { mutableStateOf(false) }
+
+                        // 🔹 Icono circular clicable
+                        val inicial = usuario.nombreUsuario.firstOrNull()?.uppercase() ?: "U"
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.tertiary,
+                                    CircleShape
+                                )
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.secondary,
+                                    CircleShape
+                                )
+                                .clickable { showCardDialog = true } // abrir diálogo
+                        ) {
+                            Text(
+                                modifier = Modifier.align(Alignment.Center),
+                                text = inicial,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+
+                        // 🔹 Dialog con tarjeta de usuario
+                        if (showCardDialog) {
+                            Dialog(onDismissRequest = { showCardDialog = false }) {
+                                Card(
+                                    shape = MaterialTheme.shapes.large,
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    elevation = CardDefaults.cardElevation(8.dp),
+                                    modifier = Modifier.padding(10.dp)
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally
+//                                        verticalArrangement = Arrangement.Center,
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .padding(16.dp)
+                                                .widthIn(min = 200.dp, max = 300.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(verticalArrangement = Arrangement.Center) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(60.dp)
+                                                        .background(
+                                                            MaterialTheme.colorScheme.tertiary,
+                                                            CircleShape
+                                                        )
+                                                        .border(
+                                                            1.dp,
+                                                            MaterialTheme.colorScheme.secondary,
+                                                            CircleShape
+                                                        )
+                                                        .clickable {
+                                                            showCardDialog = true
+                                                        } // abrir diálogo
+                                                ) {
+                                                    Text(
+                                                        modifier = Modifier.align(Alignment.Center),
+                                                        text = inicial,
+                                                        style = MaterialTheme.typography.titleMedium
+                                                    )
+                                                }
+                                            }
+                                            Column(modifier = Modifier.padding(16.dp)) {
+                                                Text(
+                                                    text = "${usuario.nombreUsuario} ${usuario.apellidosUsuario}",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(
+                                                    "Email: ${usuario.email}",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    "Sexo: ${usuario.sexo}",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    "Incorporación: ${usuario.incorporacionUsuario}",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            }
+                                        }
+                                        Button(
+                                            modifier = Modifier.padding(bottom = 16.dp),
+                                            onClick = { showCardDialog = false }) {
+                                            Text("Cerrar")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
             )
         }
     ) { innerPadding ->

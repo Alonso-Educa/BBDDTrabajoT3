@@ -39,4 +39,14 @@ class Estructura {
         const val PRECIO = "precio"
         const val TIPO = "tipo"
     }
+
+    object Publicaciones {
+        const val TABLE_NAME = "PUBLICACIONES"
+        const val IDINMUEBLE = "idPublicacion"
+        const val IDUSUARIO = "idUsuario"
+        const val NOMBREUSUARIO = "nombreUsuario"
+        const val TITULO = "titulo"
+        const val DESCRIPCION = "descripcion"
+        const val URLIMAGEN = "urlImagen"
+    }
 }

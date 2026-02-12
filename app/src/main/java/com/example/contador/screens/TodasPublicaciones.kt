@@ -1,36 +1,26 @@
 package com.example.contador.screens
 
-import android.provider.CalendarContract.Instances.query
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.isTraversalGroup
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,12 +29,13 @@ import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.room.Room
 import coil.compose.AsyncImage
-import com.composables.icons.lucide.CircleUserRound
 import com.composables.icons.lucide.HousePlus
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Share
 import com.example.contador.localdb.AppDB
 import com.example.contador.localdb.Estructura
 import com.example.contador.localdb.InmueblesData
+import com.example.contador.localdb.PublicacionesData
 import com.example.contador.localdb.UsuarioData
 import com.example.contador.navigation.AppScreens
 import com.google.firebase.firestore.FirebaseFirestore
@@ -52,7 +43,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TodosInmuebles(navController: NavController) {
+fun TodasPublicaciones(navController: NavController) {
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -68,18 +59,15 @@ fun TodosInmuebles(navController: NavController) {
 
     val sesionDao = db.sesionDao()
     val usuarioDao = db.usuarioDao()
-    val inmuebleDao = db.inmueblesDao()
+    val publicacionDao = db.publicacionesDao()
 
     // Estados
     var usuarioSesion by remember { mutableStateOf<UsuarioData?>(null) }
-    var listaInmuebles by remember { mutableStateOf<List<InmueblesData>>(emptyList()) }
+    var listaPublicaciones by remember { mutableStateOf<List<PublicacionesData>>(emptyList()) }
     var estaActivo by remember { mutableStateOf<Int?>(null) }
     var favoritos by remember { mutableStateOf(setOf<Int>()) }
 
     var idUsuarioSesionActual by remember { mutableStateOf("") }
-
-    val listState = rememberLazyListState()
-    var query by remember { mutableStateOf("") }
 
     // Cargar sesión y lista de inmuebles
     LaunchedEffect(Unit) {
@@ -87,28 +75,27 @@ fun TodosInmuebles(navController: NavController) {
         idUsuarioSesionActual = sesion?.idUsuario ?: ""
         usuarioSesion = sesion?.let { usuarioDao.getUsuarioPorId(it.idUsuario) }
 
-        firestore.collection("inmuebles")
+        firestore.collection("publicaciones")
             .get()
             .addOnSuccessListener { result ->
-                val lista = result.documents.mapNotNull { inmueble ->
+                val lista = result.documents.mapNotNull { publicacion ->
                     try {
-                        InmueblesData(
-                            idInmueble = inmueble.id.hashCode(), // ID local temporal
-                            idUsuario = inmueble.getString("idUsuario") ?: "",
-                            titulo = inmueble.getString("titulo") ?: "",
-                            descripcion = inmueble.getString("descripcion") ?: "",
-                            urlImagen = inmueble.getString("urlImagen") ?: "",
-                            precio = inmueble.getDouble("precio") ?: 0.0,
-                            tipo = inmueble.getString("tipo") ?: ""
+                        PublicacionesData(
+                            idPublicacion = publicacion.id.hashCode(), // ID local temporal
+                            idUsuario = publicacion.getString("idUsuario") ?: "",
+                            nombreUsuario = publicacion.getString("nombreUsuario") ?: "",
+                            titulo = publicacion.getString("titulo") ?: "",
+                            descripcion = publicacion.getString("descripcion") ?: "",
+                            urlImagen = publicacion.getString("urlImagen") ?: "",
                         )
                     } catch (e: Exception) {
                         null
                     }
                 }
-                listaInmuebles = lista
+                listaPublicaciones = lista
             }
             .addOnFailureListener {
-                Toast.makeText(context, "Error cargando inmuebles", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Error cargando publicaciones", Toast.LENGTH_SHORT).show()
             }
     }
 
@@ -116,7 +103,7 @@ fun TodosInmuebles(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Todos los Inmuebles", fontSize = 15.sp) },
+                title = { Text("Todas los Publicaciones", fontSize = 15.sp) },
                 colors = topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White
@@ -254,176 +241,82 @@ fun TodosInmuebles(navController: NavController) {
                 }
             )
         },
-        bottomBar = { BottomBarInmuebles(navController as NavHostController) }
+        bottomBar = { BottomBarPublicaciones(navController as NavHostController) }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-        ) {
-            BarraBusquedaInmuebles(
-                query = query,
-                onQueryChange = { query = it },
-                onSearch = { /* opcional */ },
-                searchResults = listaInmuebles
-                    .filter { it.titulo.contains(query, ignoreCase = true) }
-                    .map { it.titulo },
-                onResultClick = { tituloSeleccionado ->
-                    val index = listaInmuebles.indexOfFirst { it.titulo == tituloSeleccionado }
-                    if (index != -1) {
-                        scope.launch {
-                            listState.animateScrollToItem(index)
-                        }
-                    }
-                }
-            )
-            val listaFiltrada = listaInmuebles.filter {
-                it.titulo.contains(query, ignoreCase = true)
-            }
 
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.padding(padding)
-            ) {
-//                items(listaInmuebles) { inmueble ->
-                items(listaFiltrada) { inmueble ->
-                    Row(
+        LazyColumn(modifier = Modifier.padding(padding)) {
+            items(listaPublicaciones) { publicacion ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(start = 8.dp)
+                            .weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+
                     ) {
+                        Text(publicacion.nombreUsuario, fontWeight = FontWeight.Bold)
                         AsyncImage(
-                            model = inmueble.urlImagen,
-                            contentDescription = inmueble.descripcion,
-                            modifier = Modifier.size(80.dp)
+                            model = publicacion.urlImagen,
+                            contentDescription = publicacion.descripcion,
+                            modifier = Modifier.size(200.dp)
                         )
-
-                        Column(
-                            modifier = Modifier
-                                .padding(start = 8.dp)
-                                .weight(1f)
-                        ) {
-                            Text(inmueble.titulo, fontWeight = FontWeight.Bold)
-                            Text("Descripción: ${inmueble.descripcion}",
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text("Precio: ${inmueble.precio} €")
-                            Text("Tipo: ${inmueble.tipo}")
-                        }
-                    }
-                    HorizontalDivider()
-                }
-            }
-        }
-
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun BarraBusquedaInmuebles(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onSearch: (String) -> Unit,
-    searchResults: List<String>,
-    onResultClick: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    // Customization options
-    placeholder: @Composable () -> Unit = { Text("Buscar") },
-    leadingIcon: @Composable (() -> Unit)? = {
-        Icon(
-            Icons.Default.Search,
-            contentDescription = "Search"
-        )
-    },
-    trailingIcon: @Composable (() -> Unit)? = null,
-    supportingContent: (@Composable (String) -> Unit)? = null,
-    leadingContent: (@Composable () -> Unit)? = null,
-) {
-    // Track expanded state of search bar
-    var expanded by rememberSaveable { mutableStateOf(false) }
-
-    Box(
-        modifier
-            .wrapContentHeight()
-            .semantics { isTraversalGroup = true }
-    ) {
-        SearchBar(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .semantics { traversalIndex = 0f },
-            inputField = {
-                // Customizable input field implementation
-                SearchBarDefaults.InputField(
-                    query = query,
-                    onQueryChange = onQueryChange,
-                    onSearch = {
-                        onSearch(query)
-                        expanded = false
-                    },
-                    expanded = expanded,
-                    onExpandedChange = { expanded = it },
-                    placeholder = placeholder,
-                    leadingIcon = leadingIcon,
-                    trailingIcon = trailingIcon
-                )
-            },
-            expanded = expanded,
-            onExpandedChange = { expanded = it },
-        ) {
-            // Show search results in a lazy column for better performance
-            LazyColumn {
-                items(count = searchResults.size) { index ->
-                    val resultText = searchResults[index]
-                    ListItem(
-                        headlineContent = { Text(resultText) },
-                        supportingContent = supportingContent?.let { { it(resultText) } },
-                        leadingContent = leadingContent,
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier
-                            .clickable {
-                                onResultClick(resultText)
-                                expanded = false
+                        Row(modifier = Modifier.padding(8.dp)) {
+                            // Botón de favorito
+                            IconButton(onClick = {
+                                favoritos = if (favoritos.contains(publicacion.idPublicacion)) {
+                                    favoritos - publicacion.idPublicacion
+                                } else {
+                                    favoritos + publicacion.idPublicacion
+                                }
+                            }) {
+                                Icon(
+                                    imageVector = if (favoritos.contains(publicacion.idPublicacion))
+                                        Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                    contentDescription = "Favorito",
+                                    tint = if (favoritos.contains(publicacion.idPublicacion)) Color.Red else Color.Black
+                                )
                             }
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
+                            // Botón de comentar
+                            IconButton(onClick = {
+                                // por hacer
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Comment,
+                                    contentDescription = "Comentario",
+                                    tint = Color.Black
+                                )
+                            }
+                            // Botón de compartir
+                            IconButton(onClick = {
+                                // por hacer
+                            }) {
+                                Icon(
+                                    imageVector = Lucide.Share,
+                                    contentDescription = "Compartir",
+                                    tint = Color.Black
+                                )
+                            }
+                        }
+                        Text(publicacion.titulo, fontWeight = FontWeight.Bold)
+                        Text(
+                            publicacion.descripcion,
+                            maxLines = if (estaActivo == publicacion.idPublicacion) Int.MAX_VALUE else 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .animateContentSize()
+                                .clickable {
+                                    estaActivo =
+                                        if (estaActivo == publicacion.idPublicacion) null else publicacion.idPublicacion
+                                }
+                        )
+                    }
                 }
-            }
-        }
-    }
-}
-
-// Para Deslizar para Actualizar (8)
-@Composable
-fun DeslizarParaActualizarInmuebles(
-    items: List<String>,
-    isRefreshing: Boolean,
-    onRefresh: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val state = rememberPullToRefreshState()
-
-    PullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = onRefresh,
-        modifier = modifier,
-        state = state,
-        indicator = {
-            PullToRefreshDefaults.Indicator(
-                modifier = Modifier.align(Alignment.TopCenter),
-                isRefreshing = isRefreshing,
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                state = state
-            )
-        },
-    ) {
-        LazyColumn(Modifier.fillMaxSize()) {
-            items(items) {
-                ListItem({ Text(text = it) })
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
             }
         }
     }

@@ -19,9 +19,11 @@ import com.example.contador.screens.Formulario
 import com.example.contador.screens.Inicio
 import com.example.contador.screens.MisInmuebles
 import com.example.contador.screens.MenuPrincipal
+import com.example.contador.screens.MisPublicaciones
 import com.example.contador.screens.ScrollP1
 import com.example.contador.screens.ScrollP2
 import com.example.contador.screens.ScrollP3
+import com.example.contador.screens.TodasPublicaciones
 import com.example.contador.screens.TodosInmuebles
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -61,6 +63,8 @@ fun AppNavigationNotificaciones(destino: String?) { // Recibe la información de
         "Formulario" -> AppScreens.Formulario.route
         "MisInmuebles" -> AppScreens.MisInmuebles.route
         "TodosInmuebles" -> AppScreens.TodosInmuebles.route
+        "MisPublicaciones" -> AppScreens.MisPublicaciones.route
+        "TodasPublicaciones" -> AppScreens.TodasPublicaciones.route
         else -> AppScreens.PrimeraP.route // Sólo tenemos las ventanas PrimerP y SegundaP en AppScreens
     }
     NavHost(navController = navController, startDestination = startDestination) {
@@ -127,6 +131,25 @@ fun AppNavigationNotificaciones(destino: String?) { // Recibe la información de
             }
             TodosInmuebles(navController)
         }
-
+        composable(route = AppScreens.MisPublicaciones.route) {
+            BackHandler(true) {
+                Toast.makeText(
+                    context,
+                    "Presionaste atrás, pero está restringido volver atrás",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            MisPublicaciones(navController)
+        }
+        composable(route = AppScreens.TodasPublicaciones.route) {
+            BackHandler(true) {
+                Toast.makeText(
+                    context,
+                    "Presionaste atrás, pero está restringido volver atrás",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            TodasPublicaciones(navController)
+        }
     }
 }

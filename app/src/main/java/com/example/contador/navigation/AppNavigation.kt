@@ -111,25 +111,25 @@ fun AppNavigation() {
             }
             TodosInmuebles(navController)
         }
-//        composable(route = AppScreens.MisPublicaciones.route) {
-//            BackHandler(true) {
-//                Toast.makeText(
-//                    context,
-//                    "Presionaste atrás, pero está restringido volver atrás",
-//                    Toast.LENGTH_SHORT
-//                ).show()
-//            }
-//            MisPublicaciones(navController)
-//        }
-//        composable(route = AppScreens.TodasPublicaciones.route) {
-//            BackHandler(true) {
-//                Toast.makeText(
-//                    context,
-//                    "Presionaste atrás, pero está restringido volver atrás",
-//                    Toast.LENGTH_SHORT
-//                ).show()
-//            }
-//            TodasPublicaciones(navController)
-//        }
+        composable(route = AppScreens.MisPublicaciones.route) {
+            BackHandler(true) {
+                Toast.makeText(
+                    context,
+                    "Presionaste atrás, pero está restringido volver atrás",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            MisPublicaciones(navController)
+        }
+        composable(route = AppScreens.TodasPublicaciones.route) {
+            BackHandler(true) {
+                Toast.makeText(
+                    context,
+                    "Presionaste atrás, pero está restringido volver atrás",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            TodasPublicaciones(navController)
+        }
     }
 }
