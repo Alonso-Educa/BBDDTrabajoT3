@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "391875796102",
+    "project_id": "bbdd-pdm",
+    "storage_bucket": "bbdd-pdm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:391875796102:android:ad4433a770963a0b93c507",
+        "android_client_info": {
+          "package_name": "com.example.contador"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUO9Z-1esbqvPrQG1Z_A0LIfFB8tA9N7M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:391875796102:android:1ca584277956994c93c507",
+        "android_client_info": {
+          "package_name": "com.example.tfg"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUO9Z-1esbqvPrQG1Z_A0LIfFB8tA9N7M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
