@@ -6,7 +6,10 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -14,12 +17,14 @@ import androidx.navigation.compose.rememberNavController
 import androidx.room.Room
 import com.example.contador.localdb.AppDB
 import com.example.contador.localdb.Estructura
+import com.example.contador.localdb.SesionData
 import com.example.contador.screens.Amigos
 import com.example.contador.screens.Formulario
 import com.example.contador.screens.Inicio
 import com.example.contador.screens.MisInmuebles
 import com.example.contador.screens.MenuPrincipal
 import com.example.contador.screens.MisPublicaciones
+import com.example.contador.screens.Productos
 import com.example.contador.screens.ScrollP1
 import com.example.contador.screens.ScrollP2
 import com.example.contador.screens.ScrollP3
@@ -46,27 +51,17 @@ fun AppNavigationNotificaciones(destino: String?) { // Recibe la información de
             .build()
     }
 
-    var estadoSesion = db.sesionDao().getEstadoSesion()
+    var estadoSesion by remember {
+        mutableStateOf<SesionData?>(null)
+    }
+
     LaunchedEffect(Unit) {
         estadoSesion = db.sesionDao().getEstadoSesion()
     }
 
     val navController = rememberNavController()
 
-    val startDestination = when (destino) { // Verifica con un when la información leída para
-        // determinar la ventana que se abrirá
-        "SegundaP" -> AppScreens.SegundaP.route
-        "TerceraP" -> AppScreens.TerceraP.route
-        "Inicio" -> AppScreens.Inicio.route
-        "Resultados" -> AppScreens.MenuPrincipal.route
-        "Amigos" -> AppScreens.Amigos.route
-        "Formulario" -> AppScreens.Formulario.route
-        "MisInmuebles" -> AppScreens.MisInmuebles.route
-        "TodosInmuebles" -> AppScreens.TodosInmuebles.route
-        "MisPublicaciones" -> AppScreens.MisPublicaciones.route
-        "TodasPublicaciones" -> AppScreens.TodasPublicaciones.route
-        else -> AppScreens.PrimeraP.route // Sólo tenemos las ventanas PrimerP y SegundaP en AppScreens
-    }
+    val startDestination = if (estadoSesion == null) AppScreens.Inicio.route else AppScreens.MenuPrincipal.route
     NavHost(navController = navController, startDestination = startDestination) {
         composable(AppScreens.PrimeraP.route) {
             ScrollP1(navController)
@@ -150,6 +145,16 @@ fun AppNavigationNotificaciones(destino: String?) { // Recibe la información de
                 ).show()
             }
             TodasPublicaciones(navController)
+        }
+        composable(route = AppScreens.Productos.route) {
+            BackHandler(true) {
+                Toast.makeText(
+                    context,
+                    "Presionaste atrás, pero está restringido volver atrás",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            Productos(navController)
         }
     }
 }

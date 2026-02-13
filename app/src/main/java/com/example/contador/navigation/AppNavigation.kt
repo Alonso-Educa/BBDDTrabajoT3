@@ -131,5 +131,15 @@ fun AppNavigation() {
             }
             TodasPublicaciones(navController)
         }
+        composable(route = AppScreens.Productos.route) {
+            BackHandler(true) {
+                Toast.makeText(
+                    context,
+                    "Presionaste atrás, pero está restringido volver atrás",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            Productos(navController)
+        }
     }
 }

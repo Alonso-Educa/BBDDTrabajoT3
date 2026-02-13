@@ -13,8 +13,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextObfuscationMode
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -24,6 +26,7 @@ import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.runtime.Composable
@@ -78,6 +81,8 @@ fun Inicio(navController: NavController) {
     val sesionDao = dbLocal.sesionDao()
 
     val notificationHandler = NotificationHandler(context)
+    var showDialog by remember { mutableStateOf(false) }
+
 
     Scaffold(
         topBar = {
@@ -129,6 +134,16 @@ fun Inicio(navController: NavController) {
             )
 
             Spacer(Modifier.height(15.dp))
+
+            Text(
+                "¿Olvidaste tu contraseña?",
+                modifier = Modifier.clickable { showDialog = true },
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = Color.Red
+            )
+
+            Spacer(Modifier.height(25.dp))
 
             // Botón de login
             Button(onClick = {
@@ -237,6 +252,20 @@ fun Inicio(navController: NavController) {
                 Text("Iniciar sesión")
             }
 
+            // no manda ningún correo
+            if (showDialog) {
+                DialogRecuperarContrasena(
+                    onDismiss = { showDialog = false },
+                    onConfirm = { showDialog = false },
+                    titulo = "Recuperar contraseña",
+                    email = email,
+                    descripcion = if (email.isBlank()) {
+                        "Introduce tu email para recuperar tu contraseña"
+                    } else {
+                        "Se ha enviado un correo electrónico para restablecer la contraseña. Mira en la carpeta de Spam"
+                    }
+                )
+            }
 
             Spacer(Modifier.height(10.dp))
 
@@ -252,3 +281,29 @@ fun Inicio(navController: NavController) {
         }
     }
 }
+
+@Composable
+fun DialogRecuperarContrasena(
+    onDismiss: () -> Unit, onConfirm: () -> Unit, titulo: String, email: String, descripcion: String
+) {
+
+    AlertDialog(
+        icon = {
+            Icon(Icons.Default.Info, contentDescription = "Icono de ejemplo")
+        },
+        title = { Text(titulo) },
+        text = { Text(descripcion) },
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Confirmar")
+            }
+        },
+        dismissButton = {
+//            TextButton(onClick = onDismiss) {
+//                Text("No tengo correo electrónico")
+//            }
+        })
+}
+
+

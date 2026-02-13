@@ -405,7 +405,8 @@ fun MenuPrincipal(navController: NavHostController) {
                         titleContentColor = Color.White
                     )
                 )
-            }
+            },
+            bottomBar = { BottomBarProductos(navController as NavHostController) }
         ) { innerPadding ->
 
             // Screen content

@@ -69,7 +69,7 @@ class MainActivity : ComponentActivity() {
                     intent?.getStringExtra("destino") // Lee la información extra de destino del Intent que recibió el MainActivity
                 AppNavigation()
                 // Pasa el destino a AppNavigation para indicar la ventana que abrir
-//                AppNavigationNotificaciones(destino) // Pasa el destino a AppNavigation para indicar la ventana que abrir
+                AppNavigationNotificaciones(destino) // Pasa el destino a AppNavigation para indicar la ventana que abrir
             }
         }
     }
