@@ -19,35 +19,35 @@ import com.example.contador.localdb.AppDB
 import com.example.contador.localdb.Estructura
 import com.example.contador.localdb.SesionData
 import com.example.contador.screens.*
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
+// var estadoSesion by remember { mutableStateOf<SesionData?>(null) }
 
 @Composable
-fun AppNavigation() {
-
+fun AppNavigation(destinoNotificacion: String? = null) {
     val context = LocalContext.current
+    val auth = Firebase.auth
 
-    val db = remember {
-        Room.databaseBuilder(
-            context.applicationContext,
-            AppDB::class.java,
-            Estructura.DB.NAME
-        ).allowMainThreadQueries()
-            .build()
-    }
-
-    var estadoSesion by remember {
-        mutableStateOf<SesionData?>(null)
-    }
-
-    LaunchedEffect(Unit) {
-        estadoSesion = db.sesionDao().getEstadoSesion()
+    // currentUser reemplaza la consulta a Room para saber si hay sesión activa
+    val startDestination = if (auth.currentUser != null) {
+        AppScreens.MenuPrincipal.route
+    } else {
+        AppScreens.Inicio.route
     }
 
     val navController = rememberNavController()
 
+    LaunchedEffect(destinoNotificacion) {
+        if (destinoNotificacion != null && AppScreens.fromRoute(destinoNotificacion) != null) {
+            navController.navigate(destinoNotificacion) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
     NavHost(
         navController = navController,
-        startDestination = if (estadoSesion == null) AppScreens.Inicio.route else AppScreens.MenuPrincipal.route
-//        startDestination = AppScreens.PrimeraP.route
+        startDestination = startDestination
     ) {
         composable(AppScreens.PrimeraP.route) {
             ScrollP1(navController)
@@ -140,6 +140,26 @@ fun AppNavigation() {
                 ).show()
             }
             Productos(navController)
+        }
+        composable(route = AppScreens.Ajustes.route) {
+            BackHandler(true) {
+                Toast.makeText(
+                    context,
+                    "Presionaste atrás, pero está restringido volver atrás",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            Ajustes(navController)
+        }
+        composable(route = AppScreens.RegistroContactos.route) {
+            BackHandler(true) {
+                Toast.makeText(
+                    context,
+                    "Presionaste atrás, pero está restringido volver atrás",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            RegistroContactos(navController)
         }
     }
 }

@@ -51,27 +51,39 @@ import com.google.accompanist.permissions.rememberPermissionState
 import kotlinx.coroutines.launch
 import android.Manifest
 import android.R.attr.label
+import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import com.example.contador.navigation.AppNavigation
-import com.example.contador.navigation.AppNavigationNotificaciones
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            ContadorTheme {
-                val destino =
-                    intent?.getStringExtra("destino") // Lee la información extra de destino del Intent que recibió el MainActivity
-                AppNavigation()
-                // Pasa el destino a AppNavigation para indicar la ventana que abrir
-                AppNavigationNotificaciones(destino) // Pasa el destino a AppNavigation para indicar la ventana que abrir
+
+        // Forzar tema claro ignorando el modo oscuro del sistema
+//        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+
+        // Leer destino enviado desde la notificación (puede ser null)
+        val destinoNotificacion = intent?.getStringExtra("destino")
+
+        setContent { // 2. Solo un setContent, fuera del tema no va lógica
+            ContadorTheme (darkTheme = false) {
+                AppNavigation(destinoNotificacion = destinoNotificacion)
             }
         }
+    }
+
+    // Cuando la app ya está abierta y llega una nueva notificación
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent) // 1. SIEMPRE lo primero
+        val destino = intent.getStringExtra("destino") // Actualiza el intent actual
+        if (destino != null) {
+            setIntent(intent)
+        }
+        // setContent NO va aquí, onNewIntent no es para UI
     }
 }
 

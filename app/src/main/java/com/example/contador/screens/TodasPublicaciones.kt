@@ -40,6 +40,8 @@ import com.example.contador.localdb.UsuarioData
 import com.example.contador.navigation.AppScreens
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,10 +53,11 @@ fun TodasPublicaciones(navController: NavController) {
 
     val db = remember {
         Room.databaseBuilder(
-            context.applicationContext,
-            AppDB::class.java,
-            Estructura.DB.NAME
-        ).allowMainThreadQueries().build()
+            context.applicationContext, AppDB::class.java, Estructura.DB.NAME
+        )
+            .allowMainThreadQueries()
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     val sesionDao = db.sesionDao()
@@ -71,9 +74,9 @@ fun TodasPublicaciones(navController: NavController) {
 
     // Cargar sesión y lista de inmuebles
     LaunchedEffect(Unit) {
-        val sesion = sesionDao.getUsuarioSesionActual()
-        idUsuarioSesionActual = sesion?.idUsuario ?: ""
-        usuarioSesion = sesion?.let { usuarioDao.getUsuarioPorId(it.idUsuario) }
+        val uid = Firebase.auth.currentUser?.uid ?: ""
+        idUsuarioSesionActual = uid
+        usuarioSesion = usuarioDao.getUsuarioPorId(uid)
 
         firestore.collection("publicaciones")
             .get()
@@ -81,16 +84,14 @@ fun TodasPublicaciones(navController: NavController) {
                 val lista = result.documents.mapNotNull { publicacion ->
                     try {
                         PublicacionesData(
-                            idPublicacion = publicacion.id.hashCode(), // ID local temporal
+                            idPublicacion = publicacion.id.hashCode(),
                             idUsuario = publicacion.getString("idUsuario") ?: "",
                             nombreUsuario = publicacion.getString("nombreUsuario") ?: "",
                             titulo = publicacion.getString("titulo") ?: "",
                             descripcion = publicacion.getString("descripcion") ?: "",
-                            urlImagen = publicacion.getString("urlImagen") ?: "",
+                            urlImagen = publicacion.getString("urlImagen") ?: ""
                         )
-                    } catch (e: Exception) {
-                        null
-                    }
+                    } catch (e: Exception) { null }
                 }
                 listaPublicaciones = lista
             }
@@ -103,7 +104,7 @@ fun TodasPublicaciones(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Todas los Publicaciones", fontSize = 15.sp) },
+                title = { Text("Todas las Publicaciones", fontSize = 15.sp) },
                 colors = topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White
@@ -128,6 +129,7 @@ fun TodasPublicaciones(navController: NavController) {
                             if (idUsuarioSesionActual.isNotEmpty()) {
                                 sesionDao.eliminarSesionUsuario(idUsuarioSesionActual)
                             }
+                            Firebase.auth.signOut() // cerrar sesión de firebase
                             navController.navigate(AppScreens.Inicio.route) {
                                 popUpTo(0) { inclusive = true }
                                 Toast.makeText(context, "Cerrando sesión", Toast.LENGTH_SHORT)

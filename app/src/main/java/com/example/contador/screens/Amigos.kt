@@ -1,6 +1,8 @@
 package com.example.contador.screens
 
+import android.content.Intent
 import android.graphics.drawable.Drawable
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.Image
 //import androidx.compose.foundation.R
@@ -64,11 +66,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.outlined.Help
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.House
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.outlined.ArrowOutward
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -84,7 +88,10 @@ import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.composables.icons.lucide.HousePlus
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Settings
 import com.example.contador.navigation.AppScreens
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
 
 
@@ -102,8 +109,12 @@ fun Amigos(navController: NavController) {
 //        ).build()
 //    }
     val db = remember {
-        Room.databaseBuilder(context, AppDB::class.java, Estructura.DB.NAME)
-            .allowMainThreadQueries().build()
+        Room.databaseBuilder(
+            context.applicationContext, AppDB::class.java, Estructura.DB.NAME
+        )
+            .allowMainThreadQueries()
+            .fallbackToDestructiveMigration()
+            .build()
     }
     // Scope para clicks y eventos
     val scope = rememberCoroutineScope()
@@ -129,6 +140,10 @@ fun Amigos(navController: NavController) {
 
     var idUsuarioSesionActual by remember { mutableStateOf("") }
     var usuarioSesion by remember { mutableStateOf<UsuarioData?>(null) }
+
+    // Para ir a la web
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
+
 
 //    var usuarioSesion by remember { mutableStateOf<UsuarioData?>(null) }
 //
@@ -276,6 +291,35 @@ fun Amigos(navController: NavController) {
                         }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    HorizontalDivider()
+
+                    // Sección secundaria
+                    Text(
+                        "Ayuda",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Ajustes") },
+                        selected = false,
+                        icon = { Icon(Lucide.Settings, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.Ajustes.route)
+                            }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Ayuda y diagnóstico") },
+                        selected = false,
+                        icon = { Icon(Icons.AutoMirrored.Outlined.Help, contentDescription = null) },
+                        onClick = { context.startActivity(intent) },
+                        badge={ Icon(Icons.Outlined.ArrowOutward, contentDescription = null) }
+                    )
                 }
             }
         }
@@ -323,7 +367,7 @@ fun Amigos(navController: NavController) {
                                     if (idUsuarioSesionActual.isNotEmpty()) {
                                         db.sesionDao().eliminarSesionUsuario(idUsuarioSesionActual)
                                     }
-
+                                    Firebase.auth.signOut() // cerrar sesión de firebase
                                     navController.navigate(AppScreens.Inicio.route) {
                                         popUpTo(0) { inclusive = true }
                                         Toast.makeText(

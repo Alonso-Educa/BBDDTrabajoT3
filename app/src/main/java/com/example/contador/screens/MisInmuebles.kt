@@ -1,5 +1,7 @@
 package com.example.contador.screens
 
+import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.DrawableRes
@@ -16,7 +18,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Help
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.ArrowOutward
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
@@ -48,6 +52,7 @@ import androidx.room.Room
 import coil.compose.AsyncImage
 import com.composables.icons.lucide.HousePlus
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Settings
 import com.example.contador.R
 import com.example.contador.localdb.AppDB
 import com.example.contador.localdb.Estructura
@@ -56,6 +61,8 @@ import com.example.contador.localdb.UsuarioData
 import com.example.contador.navigation.AppScreens
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 
 // https://i.pinimg.com/originals/ce/2a/a4/ce2aa4b802e2645bb741353f3e519d9f.jpg
 
@@ -70,12 +77,18 @@ fun MisInmuebles(navController: NavController) {
     val db = remember {
         Room.databaseBuilder(
             context.applicationContext, AppDB::class.java, Estructura.DB.NAME
-        ).allowMainThreadQueries().build()
+        )
+            .allowMainThreadQueries()
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     val sesionDao = db.sesionDao()
     val usuarioDao = db.usuarioDao()
     val inmuebleDao = db.inmueblesDao()
+
+    // Para ir a la web
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
 
     // Estados
     var usuarioSesion by remember { mutableStateOf<UsuarioData?>(null) }
@@ -97,13 +110,14 @@ fun MisInmuebles(navController: NavController) {
 
 
     // Cargar sesión y lista de inmuebles
+    val uid = Firebase.auth.currentUser?.uid ?: ""
+
     LaunchedEffect(Unit) {
-        val sesion = sesionDao.getUsuarioSesionActual()
-        idUsuarioSesionActual = sesion?.idUsuario ?: ""
-        usuarioSesion = sesion?.let { usuarioDao.getUsuarioPorId(it.idUsuario) }
+        idUsuarioSesionActual = uid
+        usuarioSesion = usuarioDao.getUsuarioPorId(uid)
 
         firestore.collection("inmuebles")
-            .whereEqualTo("idUsuario", idUsuarioSesionActual) // solo del usuario actual
+            .whereEqualTo("idUsuario", uid) // siempre disponible
             .get()
             .addOnSuccessListener { result ->
                 val lista = result.documents.mapNotNull { inmueble ->
@@ -213,6 +227,40 @@ fun MisInmuebles(navController: NavController) {
                         }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    HorizontalDivider()
+
+                    // Sección secundaria
+                    Text(
+                        "Ayuda",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Ajustes") },
+                        selected = false,
+                        icon = { Icon(Lucide.Settings, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.Ajustes.route)
+                            }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Ayuda y diagnóstico") },
+                        selected = false,
+                        icon = {
+                            Icon(
+                                Icons.AutoMirrored.Outlined.Help,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = { context.startActivity(intent) },
+                        badge = { Icon(Icons.Outlined.ArrowOutward, contentDescription = null) }
+                    )
                 }
             }
         }
@@ -249,6 +297,7 @@ fun MisInmuebles(navController: NavController) {
                                 if (idUsuarioSesionActual.isNotEmpty()) {
                                     sesionDao.eliminarSesionUsuario(idUsuarioSesionActual)
                                 }
+                                Firebase.auth.signOut() // cerrar sesión de firebase
                                 navController.navigate(AppScreens.Inicio.route) {
                                     popUpTo(0) { inclusive = true }
                                     Toast.makeText(context, "Cerrando sesión", Toast.LENGTH_SHORT)
@@ -477,7 +526,9 @@ fun MisInmuebles(navController: NavController) {
 
                                 inmuebleDao.eliminarInmueble(id)
 
-                                firestore.collection("inmuebles").whereEqualTo("idInmuebleRoom", id)
+                                firestore.collection("inmuebles")
+                                    .whereEqualTo("idUsuario", idUsuarioSesionActual)
+                                    .whereEqualTo("titulo", inmuebleEditando!!.titulo)
                                     .get()
                                     .addOnSuccessListener { result ->
                                         result.documents.forEach { it.reference.delete() }
@@ -549,7 +600,12 @@ fun MisInmuebles(navController: NavController) {
                         onDismissRequest = { showDialog = false },
                         title = { Text(if (inmuebleEditando == null) "Nuevo Inmueble" else "Editar Inmueble") },
                         text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Column(
+                                modifier = Modifier
+                                    .verticalScroll(rememberScrollState()) // ← añadir esto
+                                    .fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 OutlinedTextField(
                                     titulo,
                                     { titulo = it },
@@ -576,109 +632,120 @@ fun MisInmuebles(navController: NavController) {
                             TextButton(
                                 onClick = {
                                     scope.launch {
-//                            when {
-//                                titulo.isBlank() -> showToast(
-//                                    context,
-//                                    "El titulo no puede estar vacío"
-//                                )
-//
-//                                descripcion.isBlank() -> showToast(
-//                                    context,
-//                                    "La descripción no puede estar vacía"
-//                                )
-//
-//                                precio.isBlank() -> showToast(
-//                                    context,
-//                                    "El precio no puede estar vacío"
-//                                )
-//
-//                                tipo.isBlank() -> showToast(
-//                                    context,
-//                                    "El tipo no puede estar vacío"
-//                                )
-//
-//                                else -> {
-                                        val inmueble = InmueblesData(
-                                            idInmueble = 0, // Room lo autogenera
-                                            idUsuario = idUsuarioSesionActual,      // idUsuario como cadena
-                                            titulo = titulo,
-                                            descripcion = descripcion,
-                                            urlImagen = urlImagen,
-                                            precio = precio.toDoubleOrNull() ?: 0.0,
-                                            tipo = tipo
-                                        )
-
-                                        if (inmuebleEditando == null) {
-                                            // Guardar en Room
-                                            inmuebleDao.nuevoInmueble(inmueble)
-
-                                            // Crear documento con ID único en Firebase
-                                            val docRef =
-                                                firestore.collection("inmuebles").document()
-                                            val dataFirebase = mapOf(
-                                                "idInmueble" to docRef.id,
-                                                "idUsuario" to idUsuarioSesionActual,
-                                                "titulo" to titulo,
-                                                "descripcion" to descripcion,
-                                                "urlImagen" to urlImagen,
-                                                "precio" to precio.toDoubleOrNull(),
-                                                "tipo" to tipo
+                                        when {
+                                            titulo.isBlank() -> showToast(
+                                                context,
+                                                "El titulo no puede estar vacío"
                                             )
 
-                                            docRef.set(dataFirebase).addOnSuccessListener {
-                                                Toast.makeText(
-                                                    context,
-                                                    "Inmueble subido a Firebase",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            }.addOnFailureListener { e ->
-                                                Toast.makeText(
-                                                    context,
-                                                    "Error Firebase: ${e.message}",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            }
-                                        } else {
-                                            // Actualizar Room
-                                            inmuebleDao.actualizaInmueble(inmueble)
+                                            descripcion.isBlank() -> showToast(
+                                                context,
+                                                "La descripción no puede estar vacía"
+                                            )
 
-                                            // Actualizar Firebase con el mismo documento
-                                            firestore.collection("inmuebles").whereEqualTo(
-                                                "idInmuebleRoom", inmuebleEditando!!.idInmueble
-                                            ).get().addOnSuccessListener { result ->
-                                                result.documents.forEach { doc ->
-                                                    doc.reference.set(
-                                                        mapOf(
-                                                            "idInmuebleRoom" to inmuebleEditando!!.idInmueble,
-                                                            "idUsuario" to idUsuarioSesionActual,
-                                                            "titulo" to titulo,
-                                                            "descripcion" to descripcion,
-                                                            "urlImagen" to urlImagen,
-                                                            "precio" to precio.toDoubleOrNull(),
-                                                            "tipo" to tipo
-                                                        )
+                                            precio.isBlank() -> showToast(
+                                                context,
+                                                "El precio no puede estar vacío"
+                                            )
+
+                                            tipo.isBlank() -> showToast(
+                                                context,
+                                                "El tipo no puede estar vacío"
+                                            )
+
+                                            else -> {
+
+                                                val inmueble = InmueblesData(
+                                                    idInmueble = 0, // Room lo autogenera
+                                                    idUsuario = idUsuarioSesionActual,      // idUsuario como cadena
+                                                    titulo = titulo,
+                                                    descripcion = descripcion,
+                                                    urlImagen = urlImagen,
+                                                    precio = precio.toDoubleOrNull() ?: 0.0,
+                                                    tipo = tipo
+                                                )
+
+                                                if (inmuebleEditando == null) {
+                                                    // Guardar en Room
+                                                    inmuebleDao.nuevoInmueble(inmueble)
+
+                                                    // Crear documento con ID único en Firebase
+                                                    val docRef =
+                                                        firestore.collection("inmuebles").document()
+                                                    val dataFirebase = mapOf(
+                                                        "idInmueble" to docRef.id,
+                                                        "idUsuario" to idUsuarioSesionActual,
+                                                        "titulo" to titulo,
+                                                        "descripcion" to descripcion,
+                                                        "urlImagen" to urlImagen,
+                                                        "precio" to precio.toDoubleOrNull(),
+                                                        "tipo" to tipo
                                                     )
+
+                                                    docRef.set(dataFirebase).addOnSuccessListener {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Inmueble subido a Firebase",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }.addOnFailureListener { e ->
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Error Firebase: ${e.message}",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }
+                                                } else {
+                                                    // Actualizar Room
+                                                    inmuebleDao.actualizaInmueble(inmueble)
+
+                                                    // Actualizar Firebase con el mismo documento
+                                                    firestore.collection("inmuebles")
+                                                        .whereEqualTo(
+                                                            "idUsuario",
+                                                            idUsuarioSesionActual
+                                                        )
+                                                        .whereEqualTo(
+                                                            "titulo",
+                                                            inmuebleEditando!!.titulo
+                                                        )
+                                                        .get()
+                                                        .addOnSuccessListener { result ->
+                                                            result.documents.forEach { doc ->
+                                                                doc.reference.update(
+                                                                    mapOf(
+                                                                        "idUsuario" to idUsuarioSesionActual,
+                                                                        "titulo" to titulo,
+                                                                        "descripcion" to descripcion,
+                                                                        "urlImagen" to urlImagen,
+                                                                        "precio" to precio.toDoubleOrNull(),
+                                                                        "tipo" to tipo
+                                                                    )
+                                                                )
+                                                            }
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Inmueble actualizado en Firebase",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        }.addOnFailureListener { e ->
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Error Firebase: ${e.message}",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        }
                                                 }
-                                                Toast.makeText(
-                                                    context,
-                                                    "Inmueble actualizado en Firebase",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            }.addOnFailureListener { e ->
-                                                Toast.makeText(
-                                                    context,
-                                                    "Error Firebase: ${e.message}",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
+
+                                                // Recargar lista usando el idUsuario como cadena
+                                                listaInmuebles =
+                                                    inmuebleDao.getInmueblesDeUsuario(
+                                                        idUsuarioSesionActual
+                                                    )
+                                                showDialog = false
                                             }
                                         }
-
-                                        // Recargar lista usando el idUsuario como cadena
-                                        listaInmuebles =
-                                            inmuebleDao.getInmueblesDeUsuario(idUsuarioSesionActual)
-                                        showDialog = false
                                     }
-//                            }
                                 }) {
                                 Text("Guardar")
                             }

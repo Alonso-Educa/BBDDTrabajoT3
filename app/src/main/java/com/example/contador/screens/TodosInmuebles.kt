@@ -1,5 +1,7 @@
 package com.example.contador.screens
 
+import android.content.Intent
+import android.net.Uri
 import android.provider.CalendarContract.Instances.query
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
@@ -14,7 +16,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Help
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.ArrowOutward
 import androidx.compose.material3.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
@@ -44,6 +48,7 @@ import coil.compose.AsyncImage
 import com.composables.icons.lucide.CircleUserRound
 import com.composables.icons.lucide.HousePlus
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Settings
 import com.example.contador.localdb.AmistadData
 import com.example.contador.localdb.AppDB
 import com.example.contador.localdb.Estructura
@@ -54,6 +59,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import kotlin.collections.set
 import kotlin.collections.toMutableMap
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,21 +72,25 @@ fun TodosInmuebles(navController: NavController) {
 
     val db = remember {
         Room.databaseBuilder(
-            context.applicationContext,
-            AppDB::class.java,
-            Estructura.DB.NAME
-        ).allowMainThreadQueries().build()
+            context.applicationContext, AppDB::class.java, Estructura.DB.NAME
+        )
+            .allowMainThreadQueries()
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     val sesionDao = db.sesionDao()
     val usuarioDao = db.usuarioDao()
     val inmuebleDao = db.inmueblesDao()
 
+    // Para ir a la web
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
+
     // Estados
     var usuarioSesion by remember { mutableStateOf<UsuarioData?>(null) }
     var listaInmuebles by remember { mutableStateOf<List<InmueblesData>>(emptyList()) }
-    var estaActivo by remember { mutableStateOf<Int?>(null) }
-    var favoritos by remember { mutableStateOf(setOf<Int>()) }
+//    var estaActivo by remember { mutableStateOf<Int?>(null) }
+//    var favoritos by remember { mutableStateOf(setOf<Int>()) }
 
     var idUsuarioSesionActual by remember { mutableStateOf("") }
 
@@ -88,9 +99,9 @@ fun TodosInmuebles(navController: NavController) {
 
     // Cargar sesión y lista de inmuebles
     LaunchedEffect(Unit) {
-        val sesion = sesionDao.getUsuarioSesionActual()
-        idUsuarioSesionActual = sesion?.idUsuario ?: ""
-        usuarioSesion = sesion?.let { usuarioDao.getUsuarioPorId(it.idUsuario) }
+        val uid = Firebase.auth.currentUser?.uid ?: ""
+        idUsuarioSesionActual = uid
+        usuarioSesion = usuarioDao.getUsuarioPorId(uid)
 
         firestore.collection("inmuebles")
             .get()
@@ -98,7 +109,7 @@ fun TodosInmuebles(navController: NavController) {
                 val lista = result.documents.mapNotNull { inmueble ->
                     try {
                         InmueblesData(
-                            idInmueble = inmueble.id.hashCode(), // ID local temporal
+                            idInmueble = inmueble.id.hashCode(),
                             idUsuario = inmueble.getString("idUsuario") ?: "",
                             titulo = inmueble.getString("titulo") ?: "",
                             descripcion = inmueble.getString("descripcion") ?: "",
@@ -106,9 +117,7 @@ fun TodosInmuebles(navController: NavController) {
                             precio = inmueble.getDouble("precio") ?: 0.0,
                             tipo = inmueble.getString("tipo") ?: ""
                         )
-                    } catch (e: Exception) {
-                        null
-                    }
+                    } catch (e: Exception) { null }
                 }
                 listaInmuebles = lista
             }
@@ -201,6 +210,35 @@ fun TodosInmuebles(navController: NavController) {
                         }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    HorizontalDivider()
+
+                    // Sección secundaria
+                    Text(
+                        "Ayuda",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Ajustes") },
+                        selected = false,
+                        icon = { Icon(Lucide.Settings, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.Ajustes.route)
+                            }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Ayuda y diagnóstico") },
+                        selected = false,
+                        icon = { Icon(Icons.AutoMirrored.Outlined.Help, contentDescription = null) },
+                        onClick = { context.startActivity(intent) },
+                        badge={ Icon(Icons.Outlined.ArrowOutward, contentDescription = null) }
+                    )
                 }
             }
         }
@@ -237,6 +275,7 @@ fun TodosInmuebles(navController: NavController) {
                                 if (idUsuarioSesionActual.isNotEmpty()) {
                                     sesionDao.eliminarSesionUsuario(idUsuarioSesionActual)
                                 }
+                                Firebase.auth.signOut() // cerrar sesión de firebase
                                 navController.navigate(AppScreens.Inicio.route) {
                                     popUpTo(0) { inclusive = true }
                                     Toast.makeText(context, "Cerrando sesión", Toast.LENGTH_SHORT)
@@ -379,7 +418,7 @@ fun TodosInmuebles(navController: NavController) {
 
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.padding(padding),
+                    modifier = Modifier.fillMaxSize(),
 
                     ) {
 //                items(listaInmuebles) { inmueble ->

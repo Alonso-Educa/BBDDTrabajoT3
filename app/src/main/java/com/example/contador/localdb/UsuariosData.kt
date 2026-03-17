@@ -114,3 +114,22 @@ data class ProductosData(
     val precio: Double,
     val porcentajePromocion: Double
 )
+
+@Entity(
+    tableName = "CONTACTOS",
+    foreignKeys = [ForeignKey(
+        entity = UsuarioData::class,
+        parentColumns = ["idUsuario"],
+        childColumns = ["idUsuario"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("idUsuario")]
+)
+data class ContactosData(
+    @PrimaryKey(autoGenerate = false)
+    val idContacto: Int = 0,
+    val idUsuario: String,
+    val nombre: String,
+    val apellidos: String,
+    val correo: String
+)

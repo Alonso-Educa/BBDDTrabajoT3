@@ -15,7 +15,6 @@ import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,9 +30,6 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Help
-import androidx.compose.material.icons.filled.AccountBox
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.DateRange
@@ -44,12 +40,10 @@ import androidx.compose.material.icons.filled.House
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material.icons.filled.LooksOne
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.ArrowOutward
-import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -81,7 +75,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -89,42 +86,39 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
-import androidx.room.Room
-import com.example.contador.localdb.AppDB
-import com.example.contador.localdb.Estructura
-import com.example.contador.localdb.UsuarioData
-import com.google.firebase.firestore.FirebaseFirestore
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
+import androidx.room.Room
 import com.composables.icons.lucide.HousePlus
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Settings
+import com.example.contador.localdb.AppDB
+import com.example.contador.localdb.Estructura
+import com.example.contador.localdb.UsuarioData
 import com.example.contador.navigation.AppScreens
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
+import androidx.core.net.toUri
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MenuPrincipal(navController: NavHostController) {
+fun Ajustes(navController: NavController) {
 
     val context = LocalContext.current
 
     val db = remember {
         Room.databaseBuilder(
-            context.applicationContext, AppDB::class.java, Estructura.DB.NAME
-        )
-            .allowMainThreadQueries()
-            .fallbackToDestructiveMigration()
-            .build()
+            context.applicationContext,
+            AppDB::class.java,
+            Estructura.DB.NAME
+        ).allowMainThreadQueries().build()
     }
 
     val scope = rememberCoroutineScope()
@@ -149,43 +143,24 @@ fun MenuPrincipal(navController: NavHostController) {
     val datePickerState = rememberDatePickerState()
 
     // Para ir a la web
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
-    var mostrarWeb by remember { mutableStateOf(false) }
+    val intent = Intent(Intent.ACTION_VIEW, "https://www.google.com".toUri())
 
     // ---------------- CARGA DE DATOS ----------------
 
+    LaunchedEffect(Unit) {
+        usuarioSesion = db.sesionDao()
+            .getUsuarioSesionActual()
+    }
     var idUsuarioSesionActual by remember { mutableStateOf("") }
-    val uid = Firebase.auth.currentUser?.uid ?: ""
 
     LaunchedEffect(Unit) {
-        val uid = Firebase.auth.currentUser?.uid ?: return@LaunchedEffect
-        idUsuarioSesionActual = uid
+        idUsuarioSesionActual = db.sesionDao()
+            .getUsuarioSesionActual()
+            ?.idUsuario ?: ""
+    }
 
-        // Carga el usuario de firestore
-        firestore.collection("usuarios").document(uid).get()
-            .addOnSuccessListener { doc ->
-                if (doc.exists()) {
-                    val usuarioFirestore = UsuarioData(
-                        idUsuario = uid,
-                        nombreUsuario = doc.getString("nombre") ?: "",
-                        apellidosUsuario = doc.getString("apellidos") ?: "",
-                        email = doc.getString("email") ?: "",
-                        sexo = doc.getString("sexo") ?: "",
-                        incorporacionUsuario = doc.getString("incorporacion") ?: ""
-                    )
-                    // Actualizar Room
-                    scope.launch {
-                        db.usuarioDao().nuevoUsuario(usuarioFirestore)
-                        usuarioSesion = usuarioFirestore
-                    }
-                }
-            }
-            .addOnFailureListener {
-                // Si no hay red, Room actúa como fallback
-                scope.launch {
-                    usuarioSesion = db.usuarioDao().getUsuarioPorId(uid)
-                }
-            }
+    LaunchedEffect(Unit) {
+        usuarioSesion = db.sesionDao().getUsuarioSesionActual()
     }
 
     // ---------------- UI ----------------
@@ -210,6 +185,20 @@ fun MenuPrincipal(navController: NavHostController) {
                         "Navegación",
                         modifier = Modifier.padding(16.dp),
                         style = MaterialTheme.typography.titleMedium
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Inicio") },
+                        selected = false,
+                        icon = { Icon(Icons.Default.Menu, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.Inicio.route) {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            }
+                        }
                     )
 
                     NavigationDrawerItem(
@@ -289,14 +278,6 @@ fun MenuPrincipal(navController: NavHostController) {
                         onClick = { context.startActivity(intent) },
                         badge={ Icon(Icons.Outlined.ArrowOutward, contentDescription = null) }
                     )
-
-//                    NavigationDrawerItem(
-//                        label = { Text("Ayuda y diagnóstico (web)") },
-//                        selected = false,
-//                        icon = { Icon(Icons.AutoMirrored.Outlined.Help, contentDescription = null) },
-//                        onClick = { mostrarWeb = true },
-//                        badge={ Icon(Icons.Outlined.ArrowOutward, contentDescription = null) }
-//                    )
                 }
             }
         }
@@ -304,7 +285,7 @@ fun MenuPrincipal(navController: NavHostController) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Menú de usuario") },
+                    title = { Text("Ajustes de usuario") },
                     navigationIcon = {
                         IconButton(onClick = {
                             scope.launch {
@@ -319,6 +300,20 @@ fun MenuPrincipal(navController: NavHostController) {
                         }
                     },
                     actions = {
+                        IconButton(onClick = {
+                            scope.launch {
+                                navController.navigate(AppScreens.MenuPrincipal.route) {
+                                    popUpTo(0) { inclusive = true }
+                                    Toast.makeText(context, "Saliendo al menú", Toast.LENGTH_SHORT)
+                                        .show()
+                                }
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Filled.ArrowBack,
+                                contentDescription = "Salir al menú"
+                            )
+                        }
                         IconButton(
                             onClick = {
                                 scope.launch {
@@ -454,15 +449,12 @@ fun MenuPrincipal(navController: NavHostController) {
         ) { innerPadding ->
 
             // Screen content
-
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
 
             ) {
-
                 var expandido by remember { mutableStateOf(false) }
 
                 usuarioSesion?.let { user ->
@@ -566,40 +558,18 @@ fun MenuPrincipal(navController: NavHostController) {
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                Row(
-                                    Modifier
-                                        .padding(10.dp)
-                                        .align(CenterHorizontally)
+                                Button(
+                                    onClick = { navController.navigate(AppScreens.MisPublicaciones.route) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color.Magenta, // Fondo del botón
+                                        contentColor = Color.White      // Color del texto / icono
+                                    ), modifier = Modifier.align(CenterHorizontally)
                                 ) {
-                                    Button(
-                                        onClick = { navController.navigate(AppScreens.MisPublicaciones.route) },
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color.Magenta, // Fondo del botón
-                                            contentColor = Color.White      // Color del texto / icono
-                                        )
-                                        //modifier = Modifier.align(CenterHorizontally)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CameraAlt,
-                                            contentDescription = "Camara"
-                                        )
-                                        Text(" Instagram")
-                                    }
-
-//                                    Button(
-//                                        onClick = { navController.navigate(AppScreens.PrimeraP.route) },
-//                                        colors = ButtonDefaults.buttonColors(
-//                                            containerColor = Color.Magenta, // Fondo del botón
-//                                            contentColor = Color.White      // Color del texto / icono
-//                                        )
-//                                        //modifier = Modifier.align(CenterHorizontally)
-//                                    ) {
-//                                        Icon(
-//                                            imageVector = Icons.Default.LooksOne,
-//                                            contentDescription = "Camara"
-//                                        )
-//                                        Text(" PrimeraP")
-//                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.CameraAlt,
+                                        contentDescription = "Camara"
+                                    )
+                                    Text(" Instagram")
                                 }
                             }
 
@@ -626,29 +596,9 @@ fun MenuPrincipal(navController: NavHostController) {
                     OutlinedTextField(apellidos, { apellidos = it }, label = { Text("Apellidos") })
                     OutlinedTextField(email, { email = it }, label = { Text("Email") })
 
-                    OutlinedTextField(
-                        value = "••••••••",
-                        onValueChange = {},
-                        readOnly = true,
-                        enabled = false,
-                        label = { Text("Contraseña") },
-                        trailingIcon = {
-                            IconButton(onClick = {
-                                val emailActual = Firebase.auth.currentUser?.email
-                                if (emailActual != null) {
-                                    Firebase.auth.sendPasswordResetEmail(emailActual)
-                                        .addOnSuccessListener {
-                                            Toast.makeText(context, "Correo enviado a $emailActual", Toast.LENGTH_LONG).show()
-                                        }
-                                        .addOnFailureListener { e ->
-                                            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-                                        }
-                                }
-                            }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Cambiar contraseña")
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
+                    OutlinedSecureTextField(
+                        state = contrasena,
+                        label = { Text("Contraseña") }
                     )
 
                     OutlinedTextField(
@@ -674,6 +624,7 @@ fun MenuPrincipal(navController: NavHostController) {
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
+
                         val actualizado = usuarioEditando!!.copy(
                             nombreUsuario = nombre,
                             apellidosUsuario = apellidos,
@@ -681,12 +632,12 @@ fun MenuPrincipal(navController: NavHostController) {
                             sexo = sexo,
                             incorporacionUsuario = incorporacion
                         )
+
                         db.usuarioDao().actualizaUsuario(actualizado)
 
-                        // Usa el uid real
-                        val uid = Firebase.auth.currentUser?.uid
-                        if (uid != null) {
-                            firestore.collection("usuarios").document(uid).update(
+                        firestore.collection("usuarios")
+                            .document(email)
+                            .set(
                                 mapOf(
                                     "nombre" to nombre,
                                     "apellidos" to apellidos,
@@ -695,10 +646,18 @@ fun MenuPrincipal(navController: NavHostController) {
                                     "incorporacion" to incorporacion
                                 )
                             )
-                        }
+
+
+//                        if (idUsuarioSesionActual != 0) {
+//                            listaUsuarios = db.usuarioDao()
+//                                .getListaUsuariosPorId(idUsuarioSesionActual)
+//                        }
+
                         showDialog = false
                     }
-                }) { Text("Guardar") }
+                }) {
+                    Text("Guardar")
+                }
             },
             dismissButton = {
                 TextButton(onClick = { showDialog = false }) {
@@ -731,14 +690,132 @@ fun MenuPrincipal(navController: NavHostController) {
             DatePicker(state = datePickerState)
         }
     }
-
-//    if (mostrarWeb) {
-//        AndroidView(factory = { ctx ->
-//            WebView(ctx).apply {
-//                webViewClient = WebViewClient()
-//                settings.javaScriptEnabled = true
-//                loadUrl("https://www.youtube.com")
-//            }
-//        })
-//    }
 }
+
+//fun convertMillisToDate2(millis: Long): String {
+//    val formatter = SimpleDateFormat("MM/dd/yyyy", Locale.getDefault())
+//    return formatter.format(Date(millis))
+//}
+//
+//@Composable
+//fun DatePickerModal2(
+//    onDateSelected: (Long?) -> Unit, onDismiss: () -> Unit
+//) {
+//    val datePickerState = rememberDatePickerState()
+//
+//    DatePickerDialog(onDismissRequest = onDismiss, confirmButton = {
+//        TextButton(
+//            onClick = {
+//                onDateSelected(datePickerState.selectedDateMillis)
+//                onDismiss()
+//            }) {
+//            Text("OK")
+//        }
+//    }, dismissButton = {
+//        TextButton(onClick = onDismiss) {
+//            Text("Cancel")
+//        }
+//    }) {
+//        DatePicker(state = datePickerState)
+//    }
+//}
+//
+//@Composable
+//fun DatePickerFieldToModal2(
+//    modifier: Modifier = Modifier
+//) {
+//    var selectedDate by remember {
+//        mutableStateOf<Long?>(null)
+//    }
+//
+//    var showModal by remember {
+//        mutableStateOf(false)
+//    }
+//
+//    OutlinedTextField(
+//        value = selectedDate?.let {
+//            convertMillisToDate(it)
+//        } ?: "",
+//        onValueChange = {},
+//        label = { Text("DOB") },
+//        placeholder = { Text("MM/DD/YYYY") },
+//        trailingIcon = {
+//            Icon(
+//                Icons.Default.DateRange, contentDescription = "Select date"
+//            )
+//        },
+//        modifier = modifier
+//            .fillMaxWidth()
+//            .pointerInput(selectedDate) {
+//                awaitEachGesture {
+//                    awaitFirstDown(pass = PointerEventPass.Initial)
+//                    val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
+//                    if (upEvent != null) {
+//                        showModal = true
+//                    }
+//                }
+//            })
+//
+//    if (showModal) {
+//        DatePickerModal2(onDateSelected = { selectedDate = it }, onDismiss = { showModal = false })
+//    }
+//}
+//
+//@Composable
+//fun UsuarioHeaderDesplegable(
+//    nombre: String,
+//    email: String,
+//    onIrAInmuebles: () -> Unit,
+//    onOtroClick: () -> Unit
+//) {
+//    var expandido by remember { mutableStateOf(false) }
+//
+//    Column(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(16.dp)
+//    ) {
+//        // Fila del usuario (icono + nombre + email)
+//        Row(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .clickable { expandido = !expandido }
+//                .padding(8.dp),
+//            verticalAlignment = Alignment.CenterVertically
+//        ) {
+//            Icon(
+//                imageVector = Icons.Default.Person,
+//                contentDescription = "Usuario",
+//                modifier = Modifier.size(40.dp)
+//            )
+//
+//            Spacer(modifier = Modifier.width(12.dp))
+//
+//            Column {
+//                Text(text = nombre, style = MaterialTheme.typography.titleMedium)
+//                Text(text = email, style = MaterialTheme.typography.bodySmall)
+//            }
+//        }
+//
+//        // 🔽 Botones desplegables
+//        if (expandido) {
+//            Spacer(modifier = Modifier.height(8.dp))
+//
+//            Button(
+//                onClick = onIrAInmuebles,
+//                modifier = Modifier.fillMaxWidth()
+//            ) {
+//                Text("Ir a inmuebles")
+//            }
+//
+//            Spacer(modifier = Modifier.height(8.dp))
+//
+//            OutlinedButton(
+//                onClick = onOtroClick,
+//                modifier = Modifier.fillMaxWidth()
+//            ) {
+//                Text("Otro botón")
+//            }
+//        }
+//    }
+//}

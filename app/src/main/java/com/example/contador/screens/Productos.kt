@@ -1,5 +1,7 @@
 package com.example.contador.screens
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
@@ -14,6 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -72,6 +76,7 @@ import coil.compose.AsyncImage
 import com.composables.icons.lucide.BadgeEuro
 import com.composables.icons.lucide.House
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Users
 import com.example.contador.R
 import com.example.contador.localdb.AppDB
 import com.example.contador.localdb.Estructura
@@ -80,6 +85,8 @@ import com.example.contador.localdb.ProductosData
 import com.example.contador.localdb.UsuarioData
 import com.example.contador.navigation.AppScreens
 import com.example.contador.notification.NotificationHandler
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 
@@ -93,12 +100,18 @@ fun Productos(navController: NavController) {
     val db = remember {
         Room.databaseBuilder(
             context.applicationContext, AppDB::class.java, Estructura.DB.NAME
-        ).allowMainThreadQueries().build()
+        )
+            .allowMainThreadQueries()
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     val sesionDao = db.sesionDao()
     val usuarioDao = db.usuarioDao()
     val productoDao = db.productosDao()
+
+    // Para ir a la web
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
 
     // Estados
     var usuarioSesion by remember { mutableStateOf<UsuarioData?>(null) }
@@ -121,20 +134,17 @@ fun Productos(navController: NavController) {
 
     val notificationHandler = NotificationHandler(context)
 
-    // Cargar sesión y lista de inmuebles
-    LaunchedEffect(Unit) {
-        val sesion = sesionDao.getUsuarioSesionActual()
-        idUsuarioSesionActual = sesion?.idUsuario ?: ""
-        usuarioSesion = sesion?.let { usuarioDao.getUsuarioPorId(it.idUsuario) }
+    // Cargar sesión y lista de productos
+    val uid = Firebase.auth.currentUser?.uid ?: ""
 
-        firestore.collection("productos")
-            .whereEqualTo("idUsuario", idUsuarioSesionActual) // solo del usuario actual
-            .get()
+    // FIX 1: Helper para recargar productos desde Firestore (fuente de verdad)
+    fun recargarProductosDesdeFirestore() {
+        firestore.collection("productos").whereEqualTo("idUsuario", uid).get()
             .addOnSuccessListener { result ->
                 val lista = result.documents.mapNotNull { producto ->
                     try {
                         ProductosData(
-                            idProducto = producto.id.hashCode(), // usamos el ID de Firebase directamente
+                            idProducto = producto.id.hashCode(),
                             idUsuario = producto.getString("idUsuario") ?: "",
                             nombre = producto.getString("nombre") ?: "",
                             descripcion = producto.getString("descripcion") ?: "",
@@ -147,89 +157,79 @@ fun Productos(navController: NavController) {
                     }
                 }
                 listaProductos = lista
-            }
-            .addOnFailureListener {
+            }.addOnFailureListener {
                 Toast.makeText(context, "Error cargando productos", Toast.LENGTH_SHORT).show()
             }
     }
 
+    LaunchedEffect(Unit) {
+        idUsuarioSesionActual = uid
+        usuarioSesion = usuarioDao.getUsuarioPorId(uid)
+        recargarProductosDesdeFirestore()
+    }
+
     // UI
-    Scaffold(
-        snackbarHost = {
-            SnackbarHost(hostState = snackbarHostState)
-        },
-        topBar = {
-            TopAppBar(
-                title = { Text("Mis Productos", fontSize = 20.sp) }, colors = topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White
-                ), navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
-                    }
-                }, actions = {
-
-                    // Regresar a mi perfil
-                    IconButton(onClick = {
-                        navController.navigate(AppScreens.MenuPrincipal.route)
-                    }) {
-                        Icon(
-                            Icons.Default.Home,
-                            contentDescription = "Regresar a mi perfil"
-                        )
-                    }
-
-                    // Cerrar sesión
-                    IconButton(onClick = {
-                        scope.launch {
-                            if (idUsuarioSesionActual.isNotEmpty()) {
-                                sesionDao.eliminarSesionUsuario(idUsuarioSesionActual)
-                            }
-                            navController.navigate(AppScreens.Inicio.route) {
-                                popUpTo(0) { inclusive = true }
-                                Toast.makeText(context, "Cerrando sesión", Toast.LENGTH_SHORT)
-                                    .show()
-                            }
-                        }
-                    }) {
-                        Icon(Icons.Default.Logout, contentDescription = "Cerrar sesión")
-                    }
-                })
-        }, floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    productoEditando = null
-                    nombre = ""
-                    descripcion = ""
-                    urlImagen = ""
-                    precio = ""
-                    porcentajePromocion = ""
-                    isPromocion = false
-                    showDialog = true
-                },
+    Scaffold(snackbarHost = {
+        SnackbarHost(hostState = snackbarHostState)
+    }, topBar = {
+        TopAppBar(
+            title = { Text("Mis Productos", fontSize = 20.sp) }, colors = topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onTertiary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Añadir producto")
-            }
-        }, bottomBar = { BottomBarProductos(navController as NavHostController) }) { padding ->
-        // Lista de productos
+                titleContentColor = Color.White
+            ), navigationIcon = {
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
+                }
+            }, actions = {
+
+                // Regresar a mi perfil
+                IconButton(onClick = {
+                    navController.navigate(AppScreens.MenuPrincipal.route)
+                }) {
+                    Icon(
+                        Icons.Default.Home, contentDescription = "Regresar a mi perfil"
+                    )
+                }
+
+                // Cerrar sesión
+                IconButton(onClick = {
+                    scope.launch {
+                        if (idUsuarioSesionActual.isNotEmpty()) {
+                            sesionDao.eliminarSesionUsuario(idUsuarioSesionActual)
+                        }
+                        Firebase.auth.signOut()
+                        navController.navigate(AppScreens.Inicio.route) {
+                            popUpTo(0) { inclusive = true }
+                            Toast.makeText(context, "Cerrando sesión", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }) {
+                    Icon(Icons.Default.Logout, contentDescription = "Cerrar sesión")
+                }
+            })
+    }, floatingActionButton = {
+        FloatingActionButton(
+            onClick = {
+                productoEditando = null
+                nombre = ""
+                descripcion = ""
+                urlImagen = ""
+                precio = ""
+                porcentajePromocion = ""
+                isPromocion = false
+                showDialog = true
+            },
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onTertiary
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Añadir producto")
+        }
+    }, bottomBar = { BottomBarProductos(navController as NavHostController) }) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
         ) {
-//            Text(
-//                text = "Galería de imágenes de tus inmuebles",
-//                modifier = Modifier.padding(8.dp),
-//                fontWeight = FontWeight.Bold
-//            )
-//
-//            // Carrusel de imágenes de los inmuebles del usuario
-//            CarruselInmuebles(
-//                inmuebles = listaInmuebles
-//            )
-
             Text(
                 text = "\nTus productos",
                 modifier = Modifier.padding(8.dp),
@@ -257,7 +257,6 @@ fun Productos(navController: NavController) {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
 
-
                                 // Imagen del producto
                                 AsyncImage(
                                     model = producto.urlImagen,
@@ -276,50 +275,63 @@ fun Productos(navController: NavController) {
                                         maxLines = 3,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    Row() {
-                                        val precioConDescuento =
-                                            producto.precio * (1 - producto.porcentajePromocion / 100)
+                                    // FIX 3: Formatear precio a 2 decimales para evitar errores de punto flotante
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                         if (producto.porcentajePromocion > 0) {
-                                            Text("Precio: $precioConDescuento €    ", color = Color.Blue)
+                                            val precioConDescuento = "%.2f".format(
+                                                producto.precio * (1 - producto.porcentajePromocion / 100)
+                                            )
+                                            val precioOriginal = "%.2f".format(producto.precio)
                                             Text(
-                                                "Descuento: ${producto.porcentajePromocion}%",
+                                                text = "$precioConDescuento €",
+                                                color = Color.Blue,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = "  $precioOriginal €",
                                                 fontSize = 12.sp,
-                                                color = Color.Red,
+                                                color = Color.Gray,
                                                 textDecoration = TextDecoration.LineThrough
                                             )
+                                            Text(
+                                                text = "  -${producto.porcentajePromocion.toInt()}%",
+                                                fontSize = 12.sp,
+                                                color = Color.Red,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         } else {
-                                            Text("Precio: ${producto.precio} €", color = Color.Blue)
+                                            Text(
+                                                text = "${"%.2f".format(producto.precio)} €",
+                                                color = Color.Blue
+                                            )
                                         }
                                     }
                                 }
 
                                 if (producto.idUsuario == idUsuarioSesionActual) {
-                                    MenuDesplegableOpcionesInmuebles(
-                                        onEditarClick = {
-                                            productoEditando = producto
-                                            nombre = producto.nombre
-                                            descripcion = producto.descripcion
-                                            urlImagen = producto.urlImagen
-                                            precio = producto.precio.toString()
-                                            porcentajePromocion =
-                                                producto.porcentajePromocion.toString()
-                                            showDialog = true
-                                        },
-                                        onEliminarClick = {
-                                            productoEditando = producto
-                                            showDialogEliminar = true
-                                        }
-                                    )
+                                    MenuDesplegableOpcionesInmuebles(onEditarClick = {
+                                        productoEditando = producto
+                                        nombre = producto.nombre
+                                        descripcion = producto.descripcion
+                                        urlImagen = producto.urlImagen
+                                        precio = producto.precio.toString()
+                                        porcentajePromocion =
+                                            producto.porcentajePromocion.toString()
+                                        isPromocion = producto.porcentajePromocion > 0
+                                        showDialog = true
+                                    }, onEliminarClick = {
+                                        productoEditando = producto
+                                        showDialogEliminar = true
+                                    })
                                 }
                             }
                             HorizontalDivider()
                         }
-
                     }
                 }
             }
 
-            // Para la eliminación del producto
+            // Diálogo para confirmación de eliminación
             if (showDialogEliminar && productoEditando != null) {
                 DialogProducto(
                     onDismiss = {
@@ -332,51 +344,53 @@ fun Productos(navController: NavController) {
 
                             productoDao.eliminarProducto(id)
 
-                            firestore.collection("productos").whereEqualTo("idProductoRoom", id)
-                                .get()
+                            firestore.collection("productos")
+                                .whereEqualTo("idUsuario", idUsuarioSesionActual)
+                                .whereEqualTo("nombre", productoEditando!!.nombre).get()
                                 .addOnSuccessListener { result ->
                                     result.documents.forEach { it.reference.delete() }
                                 }
 
-                            listaProductos =
-                                productoDao.getProductosDeUsuario(idUsuarioSesionActual)
+                            // FIX 1: Actualizar lista en memoria en vez de leer de Room
+                            listaProductos = listaProductos.filter {
+                                it.idProducto != id
+                            }
 
-                            Toast.makeText(context, "Producto eliminado", Toast.LENGTH_SHORT)
-                                .show()
+                            Toast.makeText(context, "Producto eliminado", Toast.LENGTH_SHORT).show()
 
                             showDialogEliminar = false
                             productoEditando = null
-                            val result = snackbarHostState
-                                .showSnackbar(
-                                    message = "¿Deseas deshacer la eliminación del producto?",
-                                    actionLabel = "Deshacer",
-                                    // Defaults to SnackbarDuration.Short
-                                    duration = SnackbarDuration.Long
-                                )
+
+                            val result = snackbarHostState.showSnackbar(
+                                message = "¿Deseas deshacer la eliminación del producto?",
+                                actionLabel = "Deshacer",
+                                duration = SnackbarDuration.Long
+                            )
                             when (result) {
                                 SnackbarResult.ActionPerformed -> {
                                     productoRecuperar?.let {
                                         productoDao.nuevoProducto(it)
                                     }
 
-                                    // Crear documento con ID único en Firebase
                                     val docRef = firestore.collection("productos").document()
                                     val dataFirebase = mapOf(
                                         "idProducto" to docRef.id,
                                         "idUsuario" to idUsuarioSesionActual,
-                                        "nombre" to nombre,
-                                        "descripcion" to descripcion,
-                                        "urlImagen" to urlImagen,
-                                        "precio" to precio.toDoubleOrNull(),
-                                        "porcentajePromocion" to porcentajePromocion.toDoubleOrNull()
+                                        "nombre" to (productoRecuperar?.nombre ?: ""),
+                                        "descripcion" to (productoRecuperar?.descripcion ?: ""),
+                                        "urlImagen" to (productoRecuperar?.urlImagen ?: ""),
+                                        "precio" to productoRecuperar?.precio,
+                                        "porcentajePromocion" to productoRecuperar?.porcentajePromocion
                                     )
 
                                     docRef.set(dataFirebase).addOnSuccessListener {
                                         Toast.makeText(
                                             context,
-                                            "Producto subido a Firebase",
+                                            "Producto restaurado",
                                             Toast.LENGTH_SHORT
                                         ).show()
+                                        // FIX 1: Recargar desde Firestore para asegurar consistencia
+                                        recargarProductosDesdeFirestore()
                                     }.addOnFailureListener { e ->
                                         Toast.makeText(
                                             context,
@@ -384,8 +398,6 @@ fun Productos(navController: NavController) {
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
-                                    listaProductos =
-                                        productoDao.getProductosDeUsuario(idUsuarioSesionActual)
                                     showSnackBar = false
                                 }
 
@@ -398,13 +410,18 @@ fun Productos(navController: NavController) {
                 )
             }
 
-            // Dialogo para añadir / editar inmueble
+            // Diálogo para añadir / editar producto
             if (showDialog) {
                 AlertDialog(
                     onDismissRequest = { showDialog = false },
                     title = { Text(if (productoEditando == null) "Nuevo Producto" else "Editar Producto") },
                     text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .verticalScroll(rememberScrollState())
+                                .fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             OutlinedTextField(
                                 nombre,
                                 { nombre = it },
@@ -438,163 +455,172 @@ fun Productos(navController: NavController) {
                         }
                     },
                     confirmButton = {
-                        TextButton(
-                            onClick = {
-                                scope.launch {
-
-                                    val producto = ProductosData(
-                                        idProducto = 0, // Room lo autogenera
-                                        idUsuario = idUsuarioSesionActual,      // idUsuario como cadena
-                                        nombre = nombre,
-                                        descripcion = descripcion,
-                                        urlImagen = urlImagen,
-                                        precio = precio.toDoubleOrNull() ?: 0.0,
-                                        porcentajePromocion = porcentajePromocion.toDoubleOrNull()
-                                            ?: 0.0
+                        TextButton(onClick = {
+                            scope.launch {
+                                when {
+                                    nombre.isBlank() -> showToast(
+                                        context, "El nombre no puede estar vacío"
                                     )
 
-                                    // Cuando se sube el producto
-                                    if (productoEditando == null) {
-                                        // Guardar en Room
-                                        productoDao.nuevoProducto(producto)
+                                    descripcion.isBlank() -> showToast(
+                                        context, "La descripción no puede estar vacía"
+                                    )
 
-                                        // Crear documento con ID único en Firebase
-                                        val docRef =
-                                            firestore.collection("productos").document()
-                                        val dataFirebase = mapOf(
-                                            "idProducto" to docRef.id,
-                                            "idUsuario" to idUsuarioSesionActual,
-                                            "nombre" to nombre,
-                                            "descripcion" to descripcion,
-                                            "urlImagen" to urlImagen,
-                                            "precio" to precio.toDoubleOrNull(),
-                                            "porcentajePromocion" to porcentajePromocion.toDoubleOrNull()
+                                    precio.isBlank() -> showToast(
+                                        context, "El precio no puede estar vacío"
+                                    )
+
+                                    precio.toDoubleOrNull() == null -> showToast(
+                                        context, "El precio debe ser un número válido"
+                                    )
+
+                                    isPromocion && porcentajePromocion.isBlank() -> showToast(
+                                        context, "Introduce el porcentaje de descuento"
+                                    )
+
+                                    isPromocion && (porcentajePromocion.toDoubleOrNull() == null || porcentajePromocion.toDouble() !in 1.0..99.0) -> showToast(
+                                        context, "El descuento debe estar entre 1 y 99"
+                                    )
+
+                                    else -> {
+                                        val porcentajeFinal = if (isPromocion)
+                                            porcentajePromocion.toDoubleOrNull() ?: 0.0
+                                        else 0.0
+
+                                        val productoNuevo = ProductosData(
+                                            idProducto = productoEditando?.idProducto ?: 0,
+                                            idUsuario = idUsuarioSesionActual,
+                                            nombre = nombre,
+                                            descripcion = descripcion,
+                                            urlImagen = urlImagen,
+                                            precio = precio.toDoubleOrNull() ?: 0.0,
+                                            porcentajePromocion = porcentajeFinal
                                         )
 
-                                        docRef.set(dataFirebase).addOnSuccessListener {
-                                            Toast.makeText(
-                                                context,
-                                                "Producto subido a Firebase",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                        // --- NUEVO PRODUCTO ---
+                                        if (productoEditando == null) {
+                                            productoDao.nuevoProducto(productoNuevo)
 
-                                        }.addOnFailureListener { e ->
-                                            Toast.makeText(
-                                                context,
-                                                "Error Firebase: ${e.message}",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                        notificationHandler.enviarNotificacionConDestino(
-                                            "Acabas de subir un nuevo producto",
-                                            "Haz clic para ir a la ventana de Productos",
-                                            "Productos"
-                                        )
-                                        listaProductos =
-                                            productoDao.getProductosDeUsuario(idUsuarioSesionActual)
-                                        // Cuando se actualiza el producto
-                                    } else {
-                                        // Actualizar Room
-                                        productoDao.actualizaProducto(producto)
-//                                        val productoRecuperar = productoEditando
+                                            val docRef =
+                                                firestore.collection("productos").document()
+                                            val dataFirebase = mapOf(
+                                                "idProducto" to docRef.id,
+                                                "idUsuario" to idUsuarioSesionActual,
+                                                "nombre" to nombre,
+                                                "descripcion" to descripcion,
+                                                "urlImagen" to urlImagen,
+                                                "precio" to precio.toDoubleOrNull(),
+                                                "porcentajePromocion" to porcentajeFinal
+                                            )
 
-                                        // Actualizar Firebase con el mismo documento
-                                        firestore.collection("productos").whereEqualTo(
-                                            "idProductoRoom", productoEditando!!.idProducto
-                                        ).get().addOnSuccessListener { result ->
-                                            result.documents.forEach { doc ->
-                                                doc.reference.set(
-                                                    mapOf(
-                                                        "idProductoRoom" to productoEditando!!.idProducto,
-                                                        "idUsuario" to idUsuarioSesionActual,
-                                                        "nombre" to nombre,
-                                                        "descripcion" to descripcion,
-                                                        "urlImagen" to urlImagen,
-                                                        "precio" to precio.toDoubleOrNull(),
-                                                        "porcentajePromocion" to porcentajePromocion.toDoubleOrNull()
-                                                    )
-                                                )
+                                            docRef.set(dataFirebase).addOnSuccessListener {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Producto subido a Firebase",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                // FIX 1: Recargar desde Firestore
+                                                recargarProductosDesdeFirestore()
+                                            }.addOnFailureListener { e ->
+                                                Toast.makeText(
+                                                    context,
+                                                    "Error Firebase: ${e.message}",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
                                             }
-                                            Toast.makeText(
-                                                context,
-                                                "Producto actualizado en Firebase",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
 
+                                            notificationHandler.enviarNotificacionConDestino(
+                                                "Acabas de subir un nuevo producto",
+                                                "Haz clic para ir a la ventana de Productos",
+                                                "Productos"
+                                            )
                                             showDialog = false
-                                            productoEditando = null
 
+                                            // --- EDITAR PRODUCTO ---
+                                        } else {
+                                            // FIX 2: Guardar estado anterior para poder deshacer
+                                            val productoAnterior = productoEditando!!
+                                            val nombreAnterior = productoAnterior.nombre
 
+                                            firestore.collection("productos")
+                                                .whereEqualTo("idUsuario", idUsuarioSesionActual)
+                                                .whereEqualTo("nombre", nombreAnterior)
+                                                .get()
+                                                .addOnSuccessListener { result ->
+                                                    result.documents.forEach { doc ->
+                                                        doc.reference.update(
+                                                            mapOf(
+                                                                "idUsuario" to idUsuarioSesionActual,
+                                                                "nombre" to nombre,
+                                                                "descripcion" to descripcion,
+                                                                "urlImagen" to urlImagen,
+                                                                "precio" to precio.toDoubleOrNull(),
+                                                                "porcentajePromocion" to porcentajeFinal
+                                                            )
+                                                        )
+                                                    }
 
-                                        }.addOnFailureListener { e ->
-                                            Toast.makeText(
-                                                context,
-                                                "Error Firebase: ${e.message}",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                                    // FIX 1: Actualizar lista en memoria directamente
+                                                    listaProductos = listaProductos.map {
+                                                        if (it.idProducto == productoAnterior.idProducto) productoNuevo else it
+                                                    }
+
+                                                    showDialog = false
+                                                    productoEditando = null
+
+                                                    // FIX 2: Mostrar snackbar con opción de deshacer edición
+                                                    scope.launch {
+                                                        val snackResult = snackbarHostState.showSnackbar(
+                                                            message = "Producto actualizado",
+                                                            actionLabel = "Deshacer",
+                                                            duration = SnackbarDuration.Long
+                                                        )
+                                                        when (snackResult) {
+                                                            SnackbarResult.ActionPerformed -> {
+                                                                // Revertir en Firebase buscando por el nombre NUEVO
+                                                                firestore.collection("productos")
+                                                                    .whereEqualTo("idUsuario", idUsuarioSesionActual)
+                                                                    .whereEqualTo("nombre", nombre)
+                                                                    .get()
+                                                                    .addOnSuccessListener { revertResult ->
+                                                                        revertResult.documents.forEach { doc ->
+                                                                            doc.reference.update(
+                                                                                mapOf(
+                                                                                    "nombre" to productoAnterior.nombre,
+                                                                                    "descripcion" to productoAnterior.descripcion,
+                                                                                    "urlImagen" to productoAnterior.urlImagen,
+                                                                                    "precio" to productoAnterior.precio,
+                                                                                    "porcentajePromocion" to productoAnterior.porcentajePromocion
+                                                                                )
+                                                                            )
+                                                                        }
+                                                                        // FIX 1: Revertir lista en memoria
+                                                                        listaProductos = listaProductos.map {
+                                                                            if (it.idProducto == productoAnterior.idProducto) productoAnterior else it
+                                                                        }
+                                                                        Toast.makeText(
+                                                                            context,
+                                                                            "Edición deshecha",
+                                                                            Toast.LENGTH_SHORT
+                                                                        ).show()
+                                                                    }
+                                                            }
+                                                            SnackbarResult.Dismissed -> { /* No action needed */ }
+                                                        }
+                                                    }
+
+                                                }.addOnFailureListener { e ->
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Error Firebase: ${e.message}",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
                                         }
-
-//                                        // Para evitar la actualización del producto
-//                                        val result = snackbarHostState
-//                                            .showSnackbar(
-//                                                message = "¿Deseas deshacer la edición del producto?",
-//                                                actionLabel = "Deshacer",
-//                                                // Defaults to SnackbarDuration.Short
-//                                                duration = SnackbarDuration.Long
-//                                            )
-//                                        when (result) {
-//                                            SnackbarResult.ActionPerformed -> {
-//                                                productoRecuperar?.let {
-//                                                    productoDao.actualizaProducto(it)
-//                                                }
-//
-//                                                // Actualizar Firebase con el mismo documento
-//                                                firestore.collection("productos").whereEqualTo(
-//                                                    "idProductoRoom", productoRecuperar!!.idProducto
-//                                                ).get().addOnSuccessListener { result ->
-//                                                    result.documents.forEach { doc ->
-//                                                        doc.reference.set(
-//                                                            mapOf(
-//                                                                "idProductoRoom" to productoRecuperar.idProducto,
-//                                                                "idUsuario" to idUsuarioSesionActual,
-//                                                                "nombre" to nombre,
-//                                                                "descripcion" to descripcion,
-//                                                                "urlImagen" to urlImagen,
-//                                                                "precio" to precio.toDoubleOrNull(),
-//                                                                "porcentajePromocion" to porcentajePromocion.toDoubleOrNull()
-//                                                            )
-//                                                        )
-//                                                    }
-//                                                    Toast.makeText(
-//                                                        context,
-//                                                        "Inmueble actualizado en Firebase",
-//                                                        Toast.LENGTH_SHORT
-//                                                    ).show()
-//                                                }.addOnFailureListener { e ->
-//                                                    Toast.makeText(
-//                                                        context,
-//                                                        "Error Firebase: ${e.message}",
-//                                                        Toast.LENGTH_SHORT
-//                                                    ).show()
-//                                                }
-//                                                listaProductos =
-//                                                    productoDao.getProductosDeUsuario(
-//                                                        idUsuarioSesionActual
-//                                                    )
-//                                                showSnackBar = false
-//                                            }
-//
-//                                            SnackbarResult.Dismissed -> {
-//                                                showSnackBar = false
-//                                            }
-//                                        }
                                     }
-                                    showDialog = false
-                                    listaProductos =
-                                        productoDao.getProductosDeUsuario(idUsuarioSesionActual)
                                 }
-//                            }
-                            }) {
+                            }
+                        }) {
                             Text("Guardar")
                         }
                     },
@@ -608,18 +634,16 @@ fun Productos(navController: NavController) {
     }
 }
 
-// Para Barra de navegación inferior (5)
+// Para Barra de navegación inferior
 @Composable
 fun BottomBarProductos(navController: NavHostController) {
-    val items = listOf(AppScreens.MenuPrincipal, AppScreens.MisInmuebles, AppScreens.Productos)
-    val labels = listOf("Perfil", "Inmuebles", "Productos")
-    val icons = listOf(Icons.Default.Home, Lucide.House, Lucide.BadgeEuro)
+    val items = listOf(AppScreens.MenuPrincipal, AppScreens.MisInmuebles, AppScreens.Productos, AppScreens.RegistroContactos)
+    val labels = listOf("Perfil", "Inmuebles", "Productos", "Contactos")
+    val icons = listOf(Icons.Default.Home, Lucide.House, Lucide.BadgeEuro, Lucide.Users)
 
     NavigationBar {
         items.forEachIndexed { index, screen ->
-
             val selected = navController.currentDestination?.route == screen.route
-
             NavigationBarItem(
                 selected = selected,
                 onClick = { navController.navigate(screen.route) },
@@ -628,8 +652,7 @@ fun BottomBarProductos(navController: NavHostController) {
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.onTertiary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.tertiary, // color de fondo
-
+                    indicatorColor = MaterialTheme.colorScheme.tertiary,
                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -638,7 +661,7 @@ fun BottomBarProductos(navController: NavHostController) {
     }
 }
 
-// Para cuadro de diálogo (3)
+// Cuadro de diálogo para confirmar eliminación
 @Composable
 fun DialogProducto(
     onDismiss: () -> Unit, onConfirm: () -> Unit, nombre: String
@@ -659,83 +682,11 @@ fun DialogProducto(
             TextButton(onClick = onDismiss) {
                 Text("Cancelar")
             }
-        }
-    )
+        })
 }
 
 @Composable
 fun SwitchMinimalExample(isPromocion: Boolean, function: () -> Unit) {
     Switch(
-        checked = isPromocion,
-        onCheckedChange = { function() }
-    )
+        checked = isPromocion, onCheckedChange = { function() })
 }
-
-//@OptIn(ExperimentalMaterial3Api::class)
-//@Composable
-//fun CarruselTarjetasProductos(productos: List<ProductosData>) {
-//    data class CarouselItem(
-//        val id: Int,
-//        @DrawableRes val imageResId: Int,
-//        val contentDescription: String
-//    )
-//
-//    val tarjetas = listOf(productos)
-//        OutlinedCard(
-//            colors = CardDefaults.cardColors(
-//                containerColor = MaterialTheme.colorScheme.surface,
-//            ),
-//            border = BorderStroke(1.dp, Color.Black),
-//            modifier = Modifier.size(width = 240.dp, height = 100.dp)
-//        ) {
-//            Row() {
-//                // URL de la imagen
-//                AsyncImage(
-//                    model = tarjetas.urlImagen,
-//                    contentDescription = producto.descripcion,
-//                    modifier = Modifier.size(80.dp)
-//                )
-//                Column() {
-//                    // Nombre del producto
-//                    Text(
-//                        text = nombre,
-//                        modifier = Modifier.padding(18.dp),
-//                        textAlign = TextAlign.Center,
-//                        fontWeight = FontWeight.Bold
-//                    )
-//                    // "Descripción del inmueble"
-//                    Text(
-//                        text = descripcion,
-//                        modifier = Modifier.padding(16.dp),
-//                        textAlign = TextAlign.Center,
-//                    )
-//                    // Precio del inmueble
-//                    Text(
-//                        text = precio.toString(),
-//                        modifier = Modifier.padding(16.dp),
-//                        textAlign = TextAlign.Center,
-//                    )
-//                    // Tipo del inmueble
-//                    Text(
-//                        text = tipo,
-//                        modifier = Modifier.padding(16.dp),
-//                        textAlign = TextAlign.Center,
-//                    )
-//                }
-//            }
-//        }
-//    )
-//
-//    HorizontalMultiBrowseCarousel(
-//        state = rememberCarouselState { tarjetas.count() },
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .wrapContentHeight()
-//            .padding(top = 16.dp, bottom = 16.dp),
-//        preferredItemWidth = 186.dp,
-//        itemSpacing = 8.dp,
-//        contentPadding = PaddingValues(horizontal = 16.dp)
-//    ) { i ->
-//        val item = items[i]
-//    }
-//}

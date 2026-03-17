@@ -61,5 +61,4 @@ class Estructura {
         const val PORCENTAJEPROMOCION = "porcentajePromocion"
 
     }
-
 }

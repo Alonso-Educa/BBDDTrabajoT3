@@ -1,6 +1,7 @@
 package com.example.contador.screens
 
 import android.content.Context
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,6 +40,8 @@ import com.example.contador.localdb.UsuarioData
 import com.example.contador.navigation.AppScreens
 import com.example.contador.notification.NotificationHandler
 import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -55,12 +58,16 @@ fun Formulario(
     val scope = rememberCoroutineScope()
 
     // Room
-    val dbLocal = remember {
-        Room.databaseBuilder(context, AppDB::class.java, Estructura.DB.NAME)
-            .allowMainThreadQueries().build()
+    val db = remember {
+        Room.databaseBuilder(
+            context.applicationContext, AppDB::class.java, Estructura.DB.NAME
+        )
+            .allowMainThreadQueries()
+            .fallbackToDestructiveMigration()
+            .build()
     }
-    val usuarioDao = dbLocal.usuarioDao()
-    val sesionDao = dbLocal.sesionDao()
+    val usuarioDao = db.usuarioDao()
+    val sesionDao = db.sesionDao()
 
     // Estados de formulario
     var nombre by remember { mutableStateOf("") }
@@ -77,6 +84,7 @@ fun Formulario(
 
     // Firebase
     val dbFirebase = FirebaseFirestore.getInstance()
+    var auth: FirebaseAuth = Firebase.auth
 
     // Date picker
     val datePickerState = rememberDatePickerState()
@@ -157,6 +165,7 @@ fun Formulario(
                     value = incorporacion,
                     onValueChange = {},
                     label = { Text("Fecha de incorporación") },
+                    placeholder = { Text("dd/mm/yyyy") }, // <- añadir esto
                     readOnly = true,
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {
@@ -196,122 +205,137 @@ fun Formulario(
 
             // Botón para agregar usuario
             Button(onClick = {
-                if (email.isBlank() || contrasena.text.isBlank()) {
-                    Toast.makeText(context, "No puede haber campos en blanco", Toast.LENGTH_SHORT)
-                        .show()
-                    return@Button
-                }
+                when {
+                    nombre.isBlank() -> {
+                        Toast.makeText(
+                            context,
+                            "El nombre no puede estar vacío",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
 
-                // Se consulta el usuario en Firebase
-                dbFirebase.collection("usuarios")
-                    .whereEqualTo("email", email)
-                    .get()
-                    .addOnSuccessListener { result ->
-                        if (!result.isEmpty) {
-                            val usuarioDoc = result.documents[0]
-                            val pwd = usuarioDoc.getString("password")
-                            val emailUser = usuarioDoc.getString("email")
-                            val idUsuario = usuarioDoc.id
-                            val nombreUsuario = usuarioDoc.getString("nombre")
-                            val apellidos = usuarioDoc.getString("apellidos")
-                            val sexo = usuarioDoc.getString("sexo")
-                            val incorporacion = usuarioDoc.getString("incorporacion")
+                    apellidos.isBlank() -> {
+                        Toast.makeText(
+                            context,
+                            "Los apellidos no pueden estar vacíos",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
 
-                            if (pwd != null && emailUser != null) {
-                                if (pwd == contrasena.text.toString()) {
+                    email.isBlank() -> {
+                        Toast.makeText(context, "El email no puede estar vacío", Toast.LENGTH_SHORT)
+                            .show()
+                    }
 
+                    !email.matches(emailPattern) -> {
+                        Toast.makeText(
+                            context,
+                            "El email no tiene un formato válido",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+
+//                    contrasena.text.length < 8 -> {
+                    contrasena.text.length < 4 -> {
+                        Toast.makeText(
+                            context,
+                            "La contraseña debe tener al menos 8 caracteres",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+
+                    incorporacion.isBlank() -> {
+                        Toast.makeText(
+                            context,
+                            "La fecha de incorporación no puede estar vacía",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+
+                    else -> {
+                        // Crear usuario con Firebase Auth
+                        auth.createUserWithEmailAndPassword(email, contrasena.text.toString())
+                            .addOnCompleteListener { task ->
+                                if (task.isSuccessful) {
+                                    val uid = auth.currentUser?.uid ?: return@addOnCompleteListener
+
+                                    // Guardar en Room (BD local)
                                     val usuarioLocal = UsuarioData(
-                                        idUsuario = idUsuario,
-                                        nombreUsuario = nombreUsuario ?: "",
-                                        apellidosUsuario = apellidos ?: "",
-                                        email = emailUser,
-                                        sexo = sexo ?: "",
-                                        incorporacionUsuario = incorporacion ?: ""
+                                        idUsuario = uid,
+                                        nombreUsuario = nombre,
+                                        apellidosUsuario = apellidos,
+                                        incorporacionUsuario = incorporacion,
+                                        email = email,
+                                        sexo = sexo
                                     )
 
+                                    // Guardar en Firestore
                                     val dataFirebase = mapOf(
                                         "nombre" to nombre,
                                         "apellidos" to apellidos,
                                         "email" to email,
-                                        "password" to contrasena.text.toString(),
                                         "incorporacion" to incorporacion,
                                         "sexo" to sexo
                                     )
 
-                                    dbFirebase.collection("usuarios")
-                                        .add(dataFirebase)
-                                        .addOnSuccessListener { println("Usuario guardado en Firebase") }
-                                        .addOnFailureListener { e -> println("Error Firebase: ${e.message}") }
+                                    dbFirebase.collection("usuarios").document(uid)
+                                        .set(dataFirebase)
+                                        .addOnSuccessListener {
+                                            // Solo guardamos en Room y sesión si Firestore fue exitoso
+                                            scope.launch {
+                                                usuarioDao.nuevoUsuario(usuarioLocal)
 
+                                                val fecha = SimpleDateFormat(
+                                                    "dd-MM-yyyy",
+                                                    Locale.getDefault()
+                                                ).format(Date())
+                                                val sesion = SesionData(
+                                                    idUsuario = uid,
+                                                    fechaInicio = fecha
+                                                )
+                                                sesionDao.eliminarTodasLasSesiones()
+                                                sesionDao.nuevaSesion(sesion)
+                                            }
 
-                                    // Guardar en Room
-                                    scope.launch {
-                                        usuarioDao.nuevoUsuario(usuarioLocal)
+                                            notificationHandler.enviarNotificacionSimple(
+                                                "Registro exitoso",
+                                                "Bienvenido $nombre"
+                                            )
 
-                                        val fecha = SimpleDateFormat(
-                                            "dd-MM-yyyy",
-                                            Locale.getDefault()
-                                        ).format(Date())
-
-                                        val sesion = SesionData(
-                                            idUsuario = idUsuario,
-                                            fechaInicio = fecha
-                                        )
-
-                                        sesionDao.eliminarTodasLasSesiones()
-                                        sesionDao.nuevaSesion(sesion)
-                                    }
-
-                                    Toast.makeText(
-                                        context,
-                                        "Inicio de sesión correcto",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-
-                                    notificationHandler.enviarNotificacionSimple(
-                                        "Inicio de sesión correcto",
-                                        "Bienvenido $nombreUsuario"
-                                    )
-
-                                    navController.navigate(AppScreens.MenuPrincipal.route) {
-                                        popUpTo(0) { inclusive = true }
-                                    }
+                                            Toast.makeText(
+                                                context,
+                                                "Usuario registrado correctamente",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            navController.navigate(AppScreens.MenuPrincipal.route) {
+                                                popUpTo(0) { inclusive = true }
+                                            }
+                                        }
+                                        .addOnFailureListener { e ->
+                                            Toast.makeText(
+                                                context,
+                                                "Error de Firestore: ${e.message}",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
 
                                 } else {
+                                    Log.e(
+                                        "Registro",
+                                        "Firebase Auth error: ${task.exception?.message}"
+                                    )
                                     Toast.makeText(
                                         context,
-                                        "Contraseña incorrecta",
-                                        Toast.LENGTH_SHORT
+                                        "Error Firebase: ${task.exception?.message}",
+                                        Toast.LENGTH_LONG
                                     ).show()
                                 }
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "Datos incompletos en Firebase",
-                                    Toast.LENGTH_SHORT
-                                ).show()
                             }
-
-                        } else {
-                            Toast.makeText(
-                                context,
-                                "Usuario no existe en Firebase",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
                     }
-                    .addOnFailureListener { e ->
-                        Toast.makeText(
-                            context,
-                            "Error Firebase: ${e.localizedMessage}",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        e.printStackTrace()
-                    }
+                }
             }) {
-                Text("Iniciar sesión")
+                Text("Agregar usuario")
             }
-
         }
     }
 }
@@ -323,26 +347,29 @@ fun SexoRadioGroup(
 ) {
     val opciones = listOf("Hombre", "Mujer", "Otro")
 
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(vertical = 8.dp)
-    ) {
-        opciones.forEach { opcion ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { onSelected(opcion) }
-            ) {
-                RadioButton(
-                    selected = selected == opcion,
-                    onClick = { onSelected(opcion) },
-                    colors = RadioButtonDefaults.colors(
-                        selectedColor = MaterialTheme.colorScheme.primary
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(modifier = Modifier.weight(1f))
+            opciones.forEach { opcion ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { onSelected(opcion) }
+                ) {
+                    RadioButton(
+                        selected = selected == opcion,
+                        onClick = { onSelected(opcion) },
+                        colors = RadioButtonDefaults.colors(
+                            selectedColor = MaterialTheme.colorScheme.primary
+                        )
                     )
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = opcion)
+                    Text(text = opcion, style = MaterialTheme.typography.bodyMedium)
+                }
             }
+            Spacer(modifier = Modifier.weight(1.2f))
         }
     }
 }
@@ -353,6 +380,6 @@ fun showToast(context: Context, mensaje: String) {
 }
 
 fun convertMillisToDate(millis: Long): String {
-    val formatter = SimpleDateFormat("MM/dd/yyyy", Locale.getDefault())
+    val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
     return formatter.format(Date(millis))
 }
