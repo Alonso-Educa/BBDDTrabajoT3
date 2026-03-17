@@ -68,12 +68,14 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     implementation(libs.androidx.material3)
+    //implementation(libs.firebase.auth.ktx)
     ksp("androidx.room:room-compiler:2.6.1")
 
     // ---------------- FIREBASE  ----------------
     implementation(platform("com.google.firebase:firebase-bom:32.7.4"))
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-common-ktx")
+    implementation("com.google.firebase:firebase-auth")
 
     // ---------------- CORE ----------------
     implementation("androidx.core:core-ktx:1.12.0")

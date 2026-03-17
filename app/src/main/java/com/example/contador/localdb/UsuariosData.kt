@@ -93,3 +93,43 @@ data class PublicacionesData(
     val urlImagen: String,
     val nombreUsuario: String
 )
+
+@Entity(
+    tableName = "PRODUCTOS",
+    foreignKeys = [ForeignKey(
+        entity = UsuarioData::class,
+        parentColumns = ["idUsuario"],
+        childColumns = ["idUsuario"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("idUsuario")]
+)
+data class ProductosData(
+    @PrimaryKey(autoGenerate = true)
+    val idProducto: Int = 0,
+    val idUsuario: String,
+    val nombre: String,
+    val descripcion: String,
+    val urlImagen: String,
+    val precio: Double,
+    val porcentajePromocion: Double
+)
+
+@Entity(
+    tableName = "CONTACTOS",
+    foreignKeys = [ForeignKey(
+        entity = UsuarioData::class,
+        parentColumns = ["idUsuario"],
+        childColumns = ["idUsuario"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("idUsuario")]
+)
+data class ContactosData(
+    @PrimaryKey(autoGenerate = false)
+    val idContacto: Int = 0,
+    val idUsuario: String,
+    val nombre: String,
+    val apellidos: String,
+    val correo: String
+)

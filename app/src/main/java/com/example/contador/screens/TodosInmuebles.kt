@@ -1,5 +1,7 @@
 package com.example.contador.screens
 
+import android.content.Intent
+import android.net.Uri
 import android.provider.CalendarContract.Instances.query
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
@@ -10,9 +12,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Help
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.ArrowOutward
 import androidx.compose.material3.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
@@ -42,6 +48,8 @@ import coil.compose.AsyncImage
 import com.composables.icons.lucide.CircleUserRound
 import com.composables.icons.lucide.HousePlus
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Settings
+import com.example.contador.localdb.AmistadData
 import com.example.contador.localdb.AppDB
 import com.example.contador.localdb.Estructura
 import com.example.contador.localdb.InmueblesData
@@ -49,6 +57,10 @@ import com.example.contador.localdb.UsuarioData
 import com.example.contador.navigation.AppScreens
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
+import kotlin.collections.set
+import kotlin.collections.toMutableMap
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,21 +72,25 @@ fun TodosInmuebles(navController: NavController) {
 
     val db = remember {
         Room.databaseBuilder(
-            context.applicationContext,
-            AppDB::class.java,
-            Estructura.DB.NAME
-        ).allowMainThreadQueries().build()
+            context.applicationContext, AppDB::class.java, Estructura.DB.NAME
+        )
+            .allowMainThreadQueries()
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     val sesionDao = db.sesionDao()
     val usuarioDao = db.usuarioDao()
     val inmuebleDao = db.inmueblesDao()
 
+    // Para ir a la web
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
+
     // Estados
     var usuarioSesion by remember { mutableStateOf<UsuarioData?>(null) }
     var listaInmuebles by remember { mutableStateOf<List<InmueblesData>>(emptyList()) }
-    var estaActivo by remember { mutableStateOf<Int?>(null) }
-    var favoritos by remember { mutableStateOf(setOf<Int>()) }
+//    var estaActivo by remember { mutableStateOf<Int?>(null) }
+//    var favoritos by remember { mutableStateOf(setOf<Int>()) }
 
     var idUsuarioSesionActual by remember { mutableStateOf("") }
 
@@ -83,9 +99,9 @@ fun TodosInmuebles(navController: NavController) {
 
     // Cargar sesión y lista de inmuebles
     LaunchedEffect(Unit) {
-        val sesion = sesionDao.getUsuarioSesionActual()
-        idUsuarioSesionActual = sesion?.idUsuario ?: ""
-        usuarioSesion = sesion?.let { usuarioDao.getUsuarioPorId(it.idUsuario) }
+        val uid = Firebase.auth.currentUser?.uid ?: ""
+        idUsuarioSesionActual = uid
+        usuarioSesion = usuarioDao.getUsuarioPorId(uid)
 
         firestore.collection("inmuebles")
             .get()
@@ -93,7 +109,7 @@ fun TodosInmuebles(navController: NavController) {
                 val lista = result.documents.mapNotNull { inmueble ->
                     try {
                         InmueblesData(
-                            idInmueble = inmueble.id.hashCode(), // ID local temporal
+                            idInmueble = inmueble.id.hashCode(),
                             idUsuario = inmueble.getString("idUsuario") ?: "",
                             titulo = inmueble.getString("titulo") ?: "",
                             descripcion = inmueble.getString("descripcion") ?: "",
@@ -101,9 +117,7 @@ fun TodosInmuebles(navController: NavController) {
                             precio = inmueble.getDouble("precio") ?: 0.0,
                             tipo = inmueble.getString("tipo") ?: ""
                         )
-                    } catch (e: Exception) {
-                        null
-                    }
+                    } catch (e: Exception) { null }
                 }
                 listaInmuebles = lista
             }
@@ -112,212 +126,363 @@ fun TodosInmuebles(navController: NavController) {
             }
     }
 
-    // UI
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Todos los Inmuebles", fontSize = 15.sp) },
-                colors = topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White
-                ),
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
-                    }
-                },
-                actions = {
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
 
-                    // Ir a perfil
-                    IconButton(onClick = {
-                        navController.navigate(AppScreens.MenuPrincipal.route)
-                    }) {
-                        Icon(Icons.Default.Home, contentDescription = "Regresar al menú principal")
-                    }
+    // Para la barra lateral de navegación (6)
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        "Mi Aplicación",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    HorizontalDivider()
 
-                    // Cerrar sesión
-                    IconButton(onClick = {
-                        scope.launch {
-                            if (idUsuarioSesionActual.isNotEmpty()) {
-                                sesionDao.eliminarSesionUsuario(idUsuarioSesionActual)
-                            }
-                            navController.navigate(AppScreens.Inicio.route) {
-                                popUpTo(0) { inclusive = true }
-                                Toast.makeText(context, "Cerrando sesión", Toast.LENGTH_SHORT)
-                                    .show()
+                    // Sección principal
+                    Text(
+                        "Navegación",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Inicio") },
+                        selected = false,
+                        icon = { Icon(Icons.Default.Menu, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.Inicio.route) {
+                                    popUpTo(0) { inclusive = true }
+                                }
                             }
                         }
-                    }) {
-                        Icon(Icons.Default.Logout, contentDescription = "Cerrar sesión")
-                    }
-                    // Inicial usuario
-                    usuarioSesion?.let { usuario ->
-                        var showCardDialog by remember { mutableStateOf(false) }
+                    )
 
-                        // 🔹 Icono circular clicable
-                        val inicial = usuario.nombreUsuario.firstOrNull()?.uppercase() ?: "U"
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.tertiary,
-                                    CircleShape
-                                )
-                                .border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.secondary,
-                                    CircleShape
-                                )
-                                .clickable { showCardDialog = true } // abrir diálogo
-                        ) {
-                            Text(
-                                modifier = Modifier.align(Alignment.Center),
-                                text = inicial,
-                                style = MaterialTheme.typography.titleMedium
+                    NavigationDrawerItem(
+                        label = { Text("Menú Principal") },
+                        selected = false,
+                        icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.MenuPrincipal.route)
+                            }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Amigos") },
+                        selected = false,
+                        icon = { Icon(Icons.Default.Group, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.Amigos.route)
+                            }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Mis Inmuebles") },
+                        selected = false,
+                        icon = { Icon(Icons.Default.House, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.MisInmuebles.route)
+                            }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Todos los Inmuebles") },
+                        selected = false,
+                        icon = { Icon(Lucide.HousePlus, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.TodosInmuebles.route)
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    HorizontalDivider()
+
+                    // Sección secundaria
+                    Text(
+                        "Ayuda",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Ajustes") },
+                        selected = false,
+                        icon = { Icon(Lucide.Settings, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.Ajustes.route)
+                            }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Ayuda y diagnóstico") },
+                        selected = false,
+                        icon = { Icon(Icons.AutoMirrored.Outlined.Help, contentDescription = null) },
+                        onClick = { context.startActivity(intent) },
+                        badge={ Icon(Icons.Outlined.ArrowOutward, contentDescription = null) }
+                    )
+                }
+            }
+        }
+    ) {
+        // UI
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Todos los Inmuebles", fontSize = 15.sp) },
+                    colors = topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = Color.White
+                    ),
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
+                        }
+                    },
+                    actions = {
+
+                        // Ir a perfil
+                        IconButton(onClick = {
+                            navController.navigate(AppScreens.MenuPrincipal.route)
+                        }) {
+                            Icon(
+                                Icons.Default.Home,
+                                contentDescription = "Regresar al menú principal"
                             )
                         }
 
-                        // 🔹 Dialog con tarjeta de usuario
-                        if (showCardDialog) {
-                            Dialog(onDismissRequest = { showCardDialog = false }) {
-                                Card(
-                                    shape = MaterialTheme.shapes.large,
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                    elevation = CardDefaults.cardElevation(8.dp),
-                                    modifier = Modifier.padding(10.dp)
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally
-//                                        verticalArrangement = Arrangement.Center,
+                        // Cerrar sesión
+                        IconButton(onClick = {
+                            scope.launch {
+                                if (idUsuarioSesionActual.isNotEmpty()) {
+                                    sesionDao.eliminarSesionUsuario(idUsuarioSesionActual)
+                                }
+                                Firebase.auth.signOut() // cerrar sesión de firebase
+                                navController.navigate(AppScreens.Inicio.route) {
+                                    popUpTo(0) { inclusive = true }
+                                    Toast.makeText(context, "Cerrando sesión", Toast.LENGTH_SHORT)
+                                        .show()
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Logout, contentDescription = "Cerrar sesión")
+                        }
+                        // Inicial usuario
+                        usuarioSesion?.let { usuario ->
+                            var showCardDialog by remember { mutableStateOf(false) }
+
+                            // 🔹 Icono circular clicable
+                            val inicial = usuario.nombreUsuario.firstOrNull()?.uppercase() ?: "U"
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.tertiary,
+                                        CircleShape
+                                    )
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.secondary,
+                                        CircleShape
+                                    )
+                                    .clickable { showCardDialog = true } // abrir diálogo
+                            ) {
+                                Text(
+                                    modifier = Modifier.align(Alignment.Center),
+                                    text = inicial,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            }
+
+                            // 🔹 Dialog con tarjeta de usuario
+                            if (showCardDialog) {
+                                Dialog(onDismissRequest = { showCardDialog = false }) {
+                                    Card(
+                                        shape = MaterialTheme.shapes.large,
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                        elevation = CardDefaults.cardElevation(8.dp),
+                                        modifier = Modifier.padding(10.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .padding(16.dp)
-                                                .widthIn(min = 200.dp, max = 300.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally
+//                                        verticalArrangement = Arrangement.Center,
                                         ) {
-                                            Column(verticalArrangement = Arrangement.Center) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(60.dp)
-                                                        .background(
-                                                            MaterialTheme.colorScheme.tertiary,
-                                                            CircleShape
+                                            Row(
+                                                modifier = Modifier
+                                                    .padding(16.dp)
+                                                    .widthIn(min = 200.dp, max = 300.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(verticalArrangement = Arrangement.Center) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(60.dp)
+                                                            .background(
+                                                                MaterialTheme.colorScheme.tertiary,
+                                                                CircleShape
+                                                            )
+                                                            .border(
+                                                                1.dp,
+                                                                MaterialTheme.colorScheme.secondary,
+                                                                CircleShape
+                                                            )
+                                                            .clickable {
+                                                                showCardDialog = true
+                                                            } // abrir diálogo
+                                                    ) {
+                                                        Text(
+                                                            modifier = Modifier.align(Alignment.Center),
+                                                            text = inicial,
+                                                            style = MaterialTheme.typography.titleMedium
                                                         )
-                                                        .border(
-                                                            1.dp,
-                                                            MaterialTheme.colorScheme.secondary,
-                                                            CircleShape
-                                                        )
-                                                        .clickable {
-                                                            showCardDialog = true
-                                                        } // abrir diálogo
-                                                ) {
+                                                    }
+                                                }
+                                                Column(modifier = Modifier.padding(16.dp)) {
                                                     Text(
-                                                        modifier = Modifier.align(Alignment.Center),
-                                                        text = inicial,
-                                                        style = MaterialTheme.typography.titleMedium
+                                                        text = "${usuario.nombreUsuario} ${usuario.apellidosUsuario}",
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Text(
+                                                        "Email: ${usuario.email}",
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                    Text(
+                                                        "Sexo: ${usuario.sexo}",
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                    Text(
+                                                        "Incorporación: ${usuario.incorporacionUsuario}",
+                                                        style = MaterialTheme.typography.bodyMedium
                                                     )
                                                 }
                                             }
-                                            Column(modifier = Modifier.padding(16.dp)) {
-                                                Text(
-                                                    text = "${usuario.nombreUsuario} ${usuario.apellidosUsuario}",
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                                Spacer(modifier = Modifier.height(8.dp))
-                                                Text(
-                                                    "Email: ${usuario.email}",
-                                                    style = MaterialTheme.typography.bodyMedium
-                                                )
-                                                Text(
-                                                    "Sexo: ${usuario.sexo}",
-                                                    style = MaterialTheme.typography.bodyMedium
-                                                )
-                                                Text(
-                                                    "Incorporación: ${usuario.incorporacionUsuario}",
-                                                    style = MaterialTheme.typography.bodyMedium
-                                                )
+                                            Button(
+                                                modifier = Modifier.padding(bottom = 16.dp),
+                                                onClick = { showCardDialog = false }) {
+                                                Text("Cerrar")
                                             }
-                                        }
-                                        Button(
-                                            modifier = Modifier.padding(bottom = 16.dp),
-                                            onClick = { showCardDialog = false }) {
-                                            Text("Cerrar")
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                }
-            )
-        },
-        bottomBar = { BottomBarInmuebles(navController as NavHostController) }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-        ) {
-            BarraBusquedaInmuebles(
-                query = query,
-                onQueryChange = { query = it },
-                onSearch = { /* opcional */ },
-                searchResults = listaInmuebles
-                    .filter { it.titulo.contains(query, ignoreCase = true) }
-                    .map { it.titulo },
-                onResultClick = { tituloSeleccionado ->
-                    val index = listaInmuebles.indexOfFirst { it.titulo == tituloSeleccionado }
-                    if (index != -1) {
-                        scope.launch {
-                            listState.animateScrollToItem(index)
-                        }
-                    }
-                }
-            )
-            val listaFiltrada = listaInmuebles.filter {
-                it.titulo.contains(query, ignoreCase = true)
-            }
-
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.padding(padding)
+                )
+            },
+            bottomBar = { BottomBarInmuebles(navController as NavHostController) }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
             ) {
-//                items(listaInmuebles) { inmueble ->
-                items(listaFiltrada) { inmueble ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AsyncImage(
-                            model = inmueble.urlImagen,
-                            contentDescription = inmueble.descripcion,
-                            modifier = Modifier.size(80.dp)
-                        )
-
-                        Column(
-                            modifier = Modifier
-                                .padding(start = 8.dp)
-                                .weight(1f)
-                        ) {
-                            Text(inmueble.titulo, fontWeight = FontWeight.Bold)
-                            Text("Descripción: ${inmueble.descripcion}",
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text("Precio: ${inmueble.precio} €")
-                            Text("Tipo: ${inmueble.tipo}")
+                BarraBusquedaInmuebles(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onSearch = { /* opcional */ },
+                    searchResults = listaInmuebles
+                        .filter { it.titulo.contains(query, ignoreCase = true) }
+                        .map { it.titulo },
+                    onResultClick = { tituloSeleccionado ->
+                        val index = listaInmuebles.indexOfFirst { it.titulo == tituloSeleccionado }
+                        if (index != -1) {
+                            scope.launch {
+                                listState.animateScrollToItem(index)
+                            }
                         }
                     }
-                    HorizontalDivider()
+                )
+                val listaFiltrada = listaInmuebles.filter {
+                    it.titulo.contains(query, ignoreCase = true)
+                }
+
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+
+                    ) {
+//                items(listaInmuebles) { inmueble ->
+                    items(listaFiltrada, key = { it.idInmueble }) { inmueble ->
+                        var isFavorito by remember(inmueble.idInmueble) {
+                            mutableStateOf(false)
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AsyncImage(
+                                model = inmueble.urlImagen,
+                                contentDescription = inmueble.descripcion,
+                                modifier = Modifier.size(80.dp)
+                            )
+
+                            Column(
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .weight(1f)
+                            ) {
+                                Text(inmueble.titulo, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "Descripción: ${inmueble.descripcion}",
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text("Precio: ${inmueble.precio} €")
+                                Text("Tipo: ${inmueble.tipo}")
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
+                            IconButton(
+                                onClick = {
+                                    isFavorito = !isFavorito
+                                    scope.launch {
+                                        if (isFavorito) {
+                                            showToast(
+                                                context,
+                                                "Inmueble ${inmueble.titulo} añadido correctamente a favoritos"
+                                            )
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = if (isFavorito) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                    contentDescription = "Inmueble favorito usuario",
+                                    tint = if (isFavorito) {
+                                        Color.Red
+                                    } else {
+                                        Color.Black
+                                    }
+                                )
+                            }
+                        }
+                        HorizontalDivider()
+                    }
                 }
             }
-        }
 
+        }
     }
 }
 

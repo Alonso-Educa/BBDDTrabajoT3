@@ -49,4 +49,16 @@ class Estructura {
         const val DESCRIPCION = "descripcion"
         const val URLIMAGEN = "urlImagen"
     }
+
+    object Productos {
+        const val TABLE_NAME = "PRODUCTOS"
+        const val IDPRODUCTO = "idProducto"
+        const val IDUSUARIO = "idUsuario"
+        const val NOMBRE = "nombre"
+        const val PRECIO = "precio"
+        const val DESCRIPCION = "descripcion"
+        const val URLIMAGEN = "urlImagen"
+        const val PORCENTAJEPROMOCION = "porcentajePromocion"
+
+    }
 }

@@ -1,5 +1,8 @@
 package com.example.contador.screens
 
+import android.content.Intent
+import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.animateContentSize
@@ -11,9 +14,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Help
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.ArrowOutward
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
@@ -45,6 +52,7 @@ import androidx.room.Room
 import coil.compose.AsyncImage
 import com.composables.icons.lucide.HousePlus
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Settings
 import com.example.contador.R
 import com.example.contador.localdb.AppDB
 import com.example.contador.localdb.Estructura
@@ -53,6 +61,8 @@ import com.example.contador.localdb.UsuarioData
 import com.example.contador.navigation.AppScreens
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 
 // https://i.pinimg.com/originals/ce/2a/a4/ce2aa4b802e2645bb741353f3e519d9f.jpg
 
@@ -67,12 +77,18 @@ fun MisInmuebles(navController: NavController) {
     val db = remember {
         Room.databaseBuilder(
             context.applicationContext, AppDB::class.java, Estructura.DB.NAME
-        ).allowMainThreadQueries().build()
+        )
+            .allowMainThreadQueries()
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     val sesionDao = db.sesionDao()
     val usuarioDao = db.usuarioDao()
     val inmuebleDao = db.inmueblesDao()
+
+    // Para ir a la web
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))
 
     // Estados
     var usuarioSesion by remember { mutableStateOf<UsuarioData?>(null) }
@@ -94,402 +110,450 @@ fun MisInmuebles(navController: NavController) {
 
 
     // Cargar sesión y lista de inmuebles
+    val uid = Firebase.auth.currentUser?.uid ?: ""
+
     LaunchedEffect(Unit) {
-        val sesion = sesionDao.getUsuarioSesionActual()
-        idUsuarioSesionActual = sesion?.idUsuario ?: ""
-        usuarioSesion = sesion?.let { usuarioDao.getUsuarioPorId(it.idUsuario) }
-        listaInmuebles = inmuebleDao.getInmueblesDeUsuario(idUsuarioSesionActual)
+        idUsuarioSesionActual = uid
+        usuarioSesion = usuarioDao.getUsuarioPorId(uid)
+
+        firestore.collection("inmuebles")
+            .whereEqualTo("idUsuario", uid) // siempre disponible
+            .get()
+            .addOnSuccessListener { result ->
+                val lista = result.documents.mapNotNull { inmueble ->
+                    try {
+                        InmueblesData(
+                            idInmueble = inmueble.id.hashCode(), // usamos el ID de Firebase directamente
+                            idUsuario = inmueble.getString("idUsuario") ?: "",
+                            titulo = inmueble.getString("titulo") ?: "",
+                            descripcion = inmueble.getString("descripcion") ?: "",
+                            urlImagen = inmueble.getString("urlImagen") ?: "",
+                            precio = inmueble.getDouble("precio") ?: 0.0,
+                            tipo = inmueble.getString("tipo") ?: ""
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                listaInmuebles = lista
+            }
+            .addOnFailureListener {
+                Toast.makeText(context, "Error cargando inmuebles", Toast.LENGTH_SHORT).show()
+            }
     }
 
-    // UI
-    Scaffold(
-        snackbarHost = {
-            SnackbarHost(hostState = snackbarHostState)
-        },
-        topBar = {
-            TopAppBar(
-                title = { Text("Mis Inmuebles", fontSize = 20.sp) }, colors = topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White
-                ), navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
-                    }
-                }, actions = {
 
-                    // Regresar al menú
-                    IconButton(onClick = {
-                        navController.navigate(AppScreens.MenuPrincipal.route)
-                    }) {
-                        Icon(Icons.Default.Home, contentDescription = "Regresar al menú principal")
-                    }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
 
-                    // Cerrar sesión
-                    IconButton(onClick = {
-                        scope.launch {
-                            if (idUsuarioSesionActual.isNotEmpty()) {
-                                sesionDao.eliminarSesionUsuario(idUsuarioSesionActual)
-                            }
-                            navController.navigate(AppScreens.Inicio.route) {
-                                popUpTo(0) { inclusive = true }
-                                Toast.makeText(context, "Cerrando sesión", Toast.LENGTH_SHORT)
-                                    .show()
+    // Para la barra lateral de navegación (6)
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        "Mi Aplicación",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    HorizontalDivider()
+
+                    // Sección principal
+                    Text(
+                        "Navegación",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Inicio") },
+                        selected = false,
+                        icon = { Icon(Icons.Default.Menu, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.Inicio.route) {
+                                    popUpTo(0) { inclusive = true }
+                                }
                             }
                         }
-                    }) {
-                        Icon(Icons.Default.Logout, contentDescription = "Cerrar sesión")
-                    }
+                    )
 
-                    // Inicial usuario
-                    usuarioSesion?.let { usuario ->
-                        var showCardDialog by remember { mutableStateOf(false) }
+                    NavigationDrawerItem(
+                        label = { Text("Menú Principal") },
+                        selected = false,
+                        icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.MenuPrincipal.route)
+                            }
+                        }
+                    )
 
-                        // 🔹 Icono circular clicable
-                        val inicial = usuario.nombreUsuario.firstOrNull()?.uppercase() ?: "U"
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.tertiary,
-                                    CircleShape
-                                )
-                                .border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.secondary,
-                                    CircleShape
-                                )
-                                .clickable { showCardDialog = true } // abrir diálogo
-                        ) {
-                            Text(
-                                modifier = Modifier.align(Alignment.Center),
-                                text = inicial,
-                                style = MaterialTheme.typography.titleMedium
+                    NavigationDrawerItem(
+                        label = { Text("Amigos") },
+                        selected = false,
+                        icon = { Icon(Icons.Default.Group, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.Amigos.route)
+                            }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Mis Inmuebles") },
+                        selected = false,
+                        icon = { Icon(Icons.Default.House, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.MisInmuebles.route)
+                            }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Todos los Inmuebles") },
+                        selected = false,
+                        icon = { Icon(Lucide.HousePlus, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.TodosInmuebles.route)
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    HorizontalDivider()
+
+                    // Sección secundaria
+                    Text(
+                        "Ayuda",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Ajustes") },
+                        selected = false,
+                        icon = { Icon(Lucide.Settings, contentDescription = null) },
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                navController.navigate(AppScreens.Ajustes.route)
+                            }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Ayuda y diagnóstico") },
+                        selected = false,
+                        icon = {
+                            Icon(
+                                Icons.AutoMirrored.Outlined.Help,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = { context.startActivity(intent) },
+                        badge = { Icon(Icons.Outlined.ArrowOutward, contentDescription = null) }
+                    )
+                }
+            }
+        }
+    ) {
+        // UI
+        Scaffold(
+            snackbarHost = {
+                SnackbarHost(hostState = snackbarHostState)
+            },
+            topBar = {
+                TopAppBar(
+                    title = { Text("Mis Inmuebles", fontSize = 20.sp) }, colors = topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = Color.White
+                    ), navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
+                        }
+                    }, actions = {
+
+                        // Regresar al menú
+                        IconButton(onClick = {
+                            navController.navigate(AppScreens.MenuPrincipal.route)
+                        }) {
+                            Icon(
+                                Icons.Default.Home,
+                                contentDescription = "Regresar al menú principal"
                             )
                         }
 
-                        // 🔹 Dialog con tarjeta de usuario
-                        if (showCardDialog) {
-                            Dialog(onDismissRequest = { showCardDialog = false }) {
-                                Card(
-                                    shape = MaterialTheme.shapes.large,
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                    elevation = CardDefaults.cardElevation(8.dp),
-                                    modifier = Modifier.padding(10.dp)
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally
-//                                        verticalArrangement = Arrangement.Center,
+                        // Cerrar sesión
+                        IconButton(onClick = {
+                            scope.launch {
+                                if (idUsuarioSesionActual.isNotEmpty()) {
+                                    sesionDao.eliminarSesionUsuario(idUsuarioSesionActual)
+                                }
+                                Firebase.auth.signOut() // cerrar sesión de firebase
+                                navController.navigate(AppScreens.Inicio.route) {
+                                    popUpTo(0) { inclusive = true }
+                                    Toast.makeText(context, "Cerrando sesión", Toast.LENGTH_SHORT)
+                                        .show()
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Logout, contentDescription = "Cerrar sesión")
+                        }
+
+                        // Inicial usuario
+                        usuarioSesion?.let { usuario ->
+                            var showCardDialog by remember { mutableStateOf(false) }
+
+                            // 🔹 Icono circular clicable
+                            val inicial = usuario.nombreUsuario.firstOrNull()?.uppercase() ?: "U"
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.tertiary,
+                                        CircleShape
+                                    )
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.secondary,
+                                        CircleShape
+                                    )
+                                    .clickable { showCardDialog = true } // abrir diálogo
+                            ) {
+                                Text(
+                                    modifier = Modifier.align(Alignment.Center),
+                                    text = inicial,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            }
+
+                            // 🔹 Dialog con tarjeta de usuario
+                            if (showCardDialog) {
+                                Dialog(onDismissRequest = { showCardDialog = false }) {
+                                    Card(
+                                        shape = MaterialTheme.shapes.large,
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                        elevation = CardDefaults.cardElevation(8.dp),
+                                        modifier = Modifier.padding(10.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .padding(16.dp)
-                                                .widthIn(min = 200.dp, max = 300.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally
+//                                        verticalArrangement = Arrangement.Center,
                                         ) {
-                                            Column(verticalArrangement = Arrangement.Center) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(60.dp)
-                                                        .background(
-                                                            MaterialTheme.colorScheme.tertiary,
-                                                            CircleShape
+                                            Row(
+                                                modifier = Modifier
+                                                    .padding(16.dp)
+                                                    .widthIn(min = 200.dp, max = 300.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(verticalArrangement = Arrangement.Center) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(60.dp)
+                                                            .background(
+                                                                MaterialTheme.colorScheme.tertiary,
+                                                                CircleShape
+                                                            )
+                                                            .border(
+                                                                1.dp,
+                                                                MaterialTheme.colorScheme.secondary,
+                                                                CircleShape
+                                                            )
+                                                            .clickable {
+                                                                showCardDialog = true
+                                                            } // abrir diálogo
+                                                    ) {
+                                                        Text(
+                                                            modifier = Modifier.align(Alignment.Center),
+                                                            text = inicial,
+                                                            style = MaterialTheme.typography.titleMedium
                                                         )
-                                                        .border(
-                                                            1.dp,
-                                                            MaterialTheme.colorScheme.secondary,
-                                                            CircleShape
-                                                        )
-                                                        .clickable {
-                                                            showCardDialog = true
-                                                        } // abrir diálogo
-                                                ) {
+                                                    }
+                                                }
+                                                Column(modifier = Modifier.padding(16.dp)) {
                                                     Text(
-                                                        modifier = Modifier.align(Alignment.Center),
-                                                        text = inicial,
-                                                        style = MaterialTheme.typography.titleMedium
+                                                        text = "${usuario.nombreUsuario} ${usuario.apellidosUsuario}",
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Text(
+                                                        "Email: ${usuario.email}",
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                    Text(
+                                                        "Sexo: ${usuario.sexo}",
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                    Text(
+                                                        "Incorporación: ${usuario.incorporacionUsuario}",
+                                                        style = MaterialTheme.typography.bodyMedium
                                                     )
                                                 }
                                             }
-                                            Column(modifier = Modifier.padding(16.dp)) {
-                                                Text(
-                                                    text = "${usuario.nombreUsuario} ${usuario.apellidosUsuario}",
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                                Spacer(modifier = Modifier.height(8.dp))
-                                                Text(
-                                                    "Email: ${usuario.email}",
-                                                    style = MaterialTheme.typography.bodyMedium
-                                                )
-                                                Text(
-                                                    "Sexo: ${usuario.sexo}",
-                                                    style = MaterialTheme.typography.bodyMedium
-                                                )
-                                                Text(
-                                                    "Incorporación: ${usuario.incorporacionUsuario}",
-                                                    style = MaterialTheme.typography.bodyMedium
-                                                )
+                                            Button(
+                                                modifier = Modifier.padding(bottom = 16.dp),
+                                                onClick = { showCardDialog = false }) {
+                                                Text("Cerrar")
                                             }
                                         }
-                                        Button(
-                                            modifier = Modifier.padding(bottom = 16.dp),
-                                            onClick = { showCardDialog = false }) {
-                                            Text("Cerrar")
-                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                })
-        }, floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    inmuebleEditando = null
-                    titulo = ""
-                    descripcion = ""
-                    urlImagen = ""
-                    precio = ""
-                    tipo = "Alquiler"
-                    showDialog = true
-                },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onTertiary
+                    })
+            }, floatingActionButton = {
+                FloatingActionButton(
+                    onClick = {
+                        inmuebleEditando = null
+                        titulo = ""
+                        descripcion = ""
+                        urlImagen = ""
+                        precio = ""
+                        tipo = "Alquiler"
+                        showDialog = true
+                    },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onTertiary
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Añadir inmueble")
+                }
+            }, bottomBar = { BottomBarInmuebles(navController as NavHostController) }) { padding ->
+            // Lista de inmuebles
+            Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Añadir inmueble")
-            }
-        }, bottomBar = { BottomBarInmuebles(navController as NavHostController) }) { padding ->
-        // Lista de inmuebles
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-        ) {
-            Text(
-                text = "Galería de imágenes de tus inmuebles",
-                modifier = Modifier.padding(8.dp),
-                fontWeight = FontWeight.Bold
-            )
+                Text(
+                    text = "Galería de imágenes de tus inmuebles",
+                    modifier = Modifier.padding(8.dp),
+                    fontWeight = FontWeight.Bold
+                )
 
-            // Carrusel de imágenes de los inmuebles del usuario
-            CarruselInmuebles(
-                inmuebles = listaInmuebles
-            )
+                // Carrusel de imágenes de los inmuebles del usuario
+                CarruselInmuebles(
+                    inmuebles = listaInmuebles
+                )
 
-            Text(
-                text = "\nTus inmuebles",
-                modifier = Modifier.padding(8.dp),
-                fontWeight = FontWeight.Bold
-            )
+                Text(
+                    text = "\nTus inmuebles",
+                    modifier = Modifier.padding(8.dp),
+                    fontWeight = FontWeight.Bold
+                )
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                if (listaInmuebles.isEmpty()) {
-                    item {
-                        Text(
-                            text = "No has subido inmuebles todavía",
-                            modifier = Modifier.padding(16.dp),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                } else {
-                    items(listaInmuebles) { inmueble ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AsyncImage(
-                                model = inmueble.urlImagen,
-                                contentDescription = inmueble.descripcion,
-                                modifier = Modifier.size(80.dp)
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    if (listaInmuebles.isEmpty()) {
+                        item {
+                            Text(
+                                text = "No has subido inmuebles todavía",
+                                modifier = Modifier.padding(16.dp),
+                                style = MaterialTheme.typography.bodyMedium
                             )
-
-                            Column(
+                        }
+                    } else {
+                        items(listaInmuebles) { inmueble ->
+                            Row(
                                 modifier = Modifier
-                                    .padding(start = 8.dp)
-                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(inmueble.titulo, fontWeight = FontWeight.Bold)
-                                Text("Descripción: ${inmueble.descripcion}",
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis
+                                AsyncImage(
+                                    model = inmueble.urlImagen,
+                                    contentDescription = inmueble.descripcion,
+                                    modifier = Modifier.size(80.dp)
                                 )
-                                Text("Precio: ${inmueble.precio} €")
-                                Text("Tipo: ${inmueble.tipo}")
-                            }
 
-                            if (inmueble.idUsuario == idUsuarioSesionActual) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    IconButton(onClick = {
-                                        inmuebleEditando = inmueble
-                                        titulo = inmueble.titulo
-                                        descripcion = inmueble.descripcion
-                                        urlImagen = inmueble.urlImagen
-                                        precio = inmueble.precio.toString()
-                                        tipo = inmueble.tipo
-                                        showDialog = true
-                                    }) {
-                                        Icon(Icons.Default.Edit, contentDescription = "Editar")
-                                    }
-                                    IconButton(onClick = {
-                                        inmuebleEditando = inmueble
-                                        showDialogEliminar = true
-                                    }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Eliminar")
-                                    }
+                                Column(
+                                    modifier = Modifier
+                                        .padding(start = 8.dp)
+                                        .weight(1f)
+                                ) {
+                                    Text(inmueble.titulo, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Descripción: ${inmueble.descripcion}",
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text("Precio: ${inmueble.precio} €")
+                                    Text("Tipo: ${inmueble.tipo}")
+                                }
+
+                                if (inmueble.idUsuario == idUsuarioSesionActual) {
+                                    MenuDesplegableOpcionesInmuebles(
+                                        onEditarClick = {
+                                            inmuebleEditando = inmueble
+                                            titulo = inmueble.titulo
+                                            descripcion = inmueble.descripcion
+                                            urlImagen = inmueble.urlImagen
+                                            precio = inmueble.precio.toString()
+                                            tipo = inmueble.tipo
+                                            showDialog = true
+                                        },
+                                        onEliminarClick = {
+                                            inmuebleEditando = inmueble
+                                            showDialogEliminar = true
+                                        }
+                                    )
                                 }
                             }
+                            HorizontalDivider()
                         }
-                        HorizontalDivider()
                     }
                 }
-            }
 
-            // Para la eliminación del inmueble
-            if (showDialogEliminar && inmuebleEditando != null) {
-                DialogInmueble(
-                    onDismiss = {
-                        showDialogEliminar = false
-                        inmuebleEditando = null
-                    }, onConfirm = {
-                        scope.launch {
-                            val id = inmuebleEditando!!.idInmueble
-                            val inmuebleRecuperar = inmuebleEditando
-
-                            inmuebleDao.eliminarInmueble(id)
-
-                            firestore.collection("inmuebles").whereEqualTo("idInmuebleRoom", id)
-                                .get()
-                                .addOnSuccessListener { result ->
-                                    result.documents.forEach { it.reference.delete() }
-                                }
-
-                            listaInmuebles =
-                                inmuebleDao.getInmueblesDeUsuario(idUsuarioSesionActual)
-
-                            Toast.makeText(context, "Inmueble eliminado", Toast.LENGTH_SHORT).show()
-
+                // Para la eliminación del inmueble
+                if (showDialogEliminar && inmuebleEditando != null) {
+                    DialogInmueble(
+                        onDismiss = {
                             showDialogEliminar = false
                             inmuebleEditando = null
-                            val result = snackbarHostState
-                                .showSnackbar(
-                                    message = "¿Deseas deshacer la eliminación del Inmueble?",
-                                    actionLabel = "Deshacer",
-                                    // Defaults to SnackbarDuration.Short
-                                    duration = SnackbarDuration.Long
-                                )
-                            when (result) {
-                                SnackbarResult.ActionPerformed -> {
-                                    inmuebleRecuperar?.let {
-                                        inmuebleDao.nuevoInmueble(it)
+                        }, onConfirm = {
+                            scope.launch {
+                                val id = inmuebleEditando!!.idInmueble
+                                val inmuebleRecuperar = inmuebleEditando
+
+                                inmuebleDao.eliminarInmueble(id)
+
+                                firestore.collection("inmuebles")
+                                    .whereEqualTo("idUsuario", idUsuarioSesionActual)
+                                    .whereEqualTo("titulo", inmuebleEditando!!.titulo)
+                                    .get()
+                                    .addOnSuccessListener { result ->
+                                        result.documents.forEach { it.reference.delete() }
                                     }
 
-                                    // Crear documento con ID único en Firebase
-                                    val docRef = firestore.collection("inmuebles").document()
-                                    val dataFirebase = mapOf(
-                                        "idInmueble" to docRef.id,
-                                        "idUsuario" to idUsuarioSesionActual,
-                                        "titulo" to titulo,
-                                        "descripcion" to descripcion,
-                                        "urlImagen" to urlImagen,
-                                        "precio" to precio.toDoubleOrNull(),
-                                        "tipo" to tipo
+                                listaInmuebles =
+                                    inmuebleDao.getInmueblesDeUsuario(idUsuarioSesionActual)
+
+                                Toast.makeText(context, "Inmueble eliminado", Toast.LENGTH_SHORT)
+                                    .show()
+
+                                showDialogEliminar = false
+                                inmuebleEditando = null
+                                val result = snackbarHostState
+                                    .showSnackbar(
+                                        message = "¿Deseas deshacer la eliminación del Inmueble?",
+                                        actionLabel = "Deshacer",
+                                        // Defaults to SnackbarDuration.Short
+                                        duration = SnackbarDuration.Long
                                     )
-
-                                    docRef.set(dataFirebase).addOnSuccessListener {
-                                        Toast.makeText(
-                                            context,
-                                            "Inmueble subido a Firebase",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }.addOnFailureListener { e ->
-                                        Toast.makeText(
-                                            context,
-                                            "Error Firebase: ${e.message}",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                    listaInmuebles = inmuebleDao.getInmueblesDeUsuario(idUsuarioSesionActual)
-                                    showSnackBar = false
-                                }
-
-                                SnackbarResult.Dismissed -> {
-                                    showSnackBar = false
-                                }
-                            }
-                        }
-                    }, titulo = inmuebleEditando!!.titulo
-                )
-            }
-
-            // Dialogo para añadir / editar inmueble
-            if (showDialog) {
-                AlertDialog(
-                    onDismissRequest = { showDialog = false },
-                    title = { Text(if (inmuebleEditando == null) "Nuevo Inmueble" else "Editar Inmueble") },
-                    text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(titulo, { titulo = it }, label = { Text("Título") })
-                            OutlinedTextField(
-                                descripcion,
-                                { descripcion = it },
-                                label = { Text("Descripción") })
-                            OutlinedTextField(
-                                urlImagen,
-                                { urlImagen = it },
-                                label = { Text("URL Imagen") })
-                            OutlinedTextField(
-                                precio,
-                                { precio = it },
-                                label = { Text("Precio (€)") })
-                            OutlinedTextField(
-                                tipo,
-                                { tipo = it },
-                                label = { Text("Tipo (Alquiler/Venta)") })
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                scope.launch {
-//                            when {
-//                                titulo.isBlank() -> showToast(
-//                                    context,
-//                                    "El titulo no puede estar vacío"
-//                                )
-//
-//                                descripcion.isBlank() -> showToast(
-//                                    context,
-//                                    "La descripción no puede estar vacía"
-//                                )
-//
-//                                precio.isBlank() -> showToast(
-//                                    context,
-//                                    "El precio no puede estar vacío"
-//                                )
-//
-//                                tipo.isBlank() -> showToast(
-//                                    context,
-//                                    "El tipo no puede estar vacío"
-//                                )
-//
-//                                else -> {
-                                    val inmueble = InmueblesData(
-                                        idInmueble = 0, // Room lo autogenera
-                                        idUsuario = idUsuarioSesionActual,      // idUsuario como cadena
-                                        titulo = titulo,
-                                        descripcion = descripcion,
-                                        urlImagen = urlImagen,
-                                        precio = precio.toDoubleOrNull() ?: 0.0,
-                                        tipo = tipo
-                                    )
-
-                                    if (inmuebleEditando == null) {
-                                        // Guardar en Room
-                                        inmuebleDao.nuevoInmueble(inmueble)
+                                when (result) {
+                                    SnackbarResult.ActionPerformed -> {
+                                        inmuebleRecuperar?.let {
+                                            inmuebleDao.nuevoInmueble(it)
+                                        }
 
                                         // Crear documento con ID único en Firebase
                                         val docRef = firestore.collection("inmuebles").document()
@@ -516,18 +580,100 @@ fun MisInmuebles(navController: NavController) {
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         }
-                                    } else {
-                                        // Actualizar Room
-                                        inmuebleDao.actualizaInmueble(inmueble)
+                                        listaInmuebles =
+                                            inmuebleDao.getInmueblesDeUsuario(idUsuarioSesionActual)
+                                        showSnackBar = false
+                                    }
 
-                                        // Actualizar Firebase con el mismo documento
-                                        firestore.collection("inmuebles").whereEqualTo(
-                                            "idInmuebleRoom", inmuebleEditando!!.idInmueble
-                                        ).get().addOnSuccessListener { result ->
-                                            result.documents.forEach { doc ->
-                                                doc.reference.set(
-                                                    mapOf(
-                                                        "idInmuebleRoom" to inmuebleEditando!!.idInmueble,
+                                    SnackbarResult.Dismissed -> {
+                                        showSnackBar = false
+                                    }
+                                }
+                            }
+                        }, titulo = inmuebleEditando!!.titulo
+                    )
+                }
+
+                // Dialogo para añadir / editar inmueble
+                if (showDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showDialog = false },
+                        title = { Text(if (inmuebleEditando == null) "Nuevo Inmueble" else "Editar Inmueble") },
+                        text = {
+                            Column(
+                                modifier = Modifier
+                                    .verticalScroll(rememberScrollState()) // ← añadir esto
+                                    .fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedTextField(
+                                    titulo,
+                                    { titulo = it },
+                                    label = { Text("Título") })
+                                OutlinedTextField(
+                                    descripcion,
+                                    { descripcion = it },
+                                    label = { Text("Descripción") })
+                                OutlinedTextField(
+                                    urlImagen,
+                                    { urlImagen = it },
+                                    label = { Text("URL Imagen") })
+                                OutlinedTextField(
+                                    precio,
+                                    { precio = it },
+                                    label = { Text("Precio (€)") })
+                                OutlinedTextField(
+                                    tipo,
+                                    { tipo = it },
+                                    label = { Text("Tipo (Alquiler/Venta)") })
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        when {
+                                            titulo.isBlank() -> showToast(
+                                                context,
+                                                "El titulo no puede estar vacío"
+                                            )
+
+                                            descripcion.isBlank() -> showToast(
+                                                context,
+                                                "La descripción no puede estar vacía"
+                                            )
+
+                                            precio.isBlank() -> showToast(
+                                                context,
+                                                "El precio no puede estar vacío"
+                                            )
+
+                                            tipo.isBlank() -> showToast(
+                                                context,
+                                                "El tipo no puede estar vacío"
+                                            )
+
+                                            else -> {
+
+                                                val inmueble = InmueblesData(
+                                                    idInmueble = 0, // Room lo autogenera
+                                                    idUsuario = idUsuarioSesionActual,      // idUsuario como cadena
+                                                    titulo = titulo,
+                                                    descripcion = descripcion,
+                                                    urlImagen = urlImagen,
+                                                    precio = precio.toDoubleOrNull() ?: 0.0,
+                                                    tipo = tipo
+                                                )
+
+                                                if (inmuebleEditando == null) {
+                                                    // Guardar en Room
+                                                    inmuebleDao.nuevoInmueble(inmueble)
+
+                                                    // Crear documento con ID único en Firebase
+                                                    val docRef =
+                                                        firestore.collection("inmuebles").document()
+                                                    val dataFirebase = mapOf(
+                                                        "idInmueble" to docRef.id,
                                                         "idUsuario" to idUsuarioSesionActual,
                                                         "titulo" to titulo,
                                                         "descripcion" to descripcion,
@@ -535,37 +681,81 @@ fun MisInmuebles(navController: NavController) {
                                                         "precio" to precio.toDoubleOrNull(),
                                                         "tipo" to tipo
                                                     )
-                                                )
+
+                                                    docRef.set(dataFirebase).addOnSuccessListener {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Inmueble subido a Firebase",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }.addOnFailureListener { e ->
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Error Firebase: ${e.message}",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }
+                                                } else {
+                                                    // Actualizar Room
+                                                    inmuebleDao.actualizaInmueble(inmueble)
+
+                                                    // Actualizar Firebase con el mismo documento
+                                                    firestore.collection("inmuebles")
+                                                        .whereEqualTo(
+                                                            "idUsuario",
+                                                            idUsuarioSesionActual
+                                                        )
+                                                        .whereEqualTo(
+                                                            "titulo",
+                                                            inmuebleEditando!!.titulo
+                                                        )
+                                                        .get()
+                                                        .addOnSuccessListener { result ->
+                                                            result.documents.forEach { doc ->
+                                                                doc.reference.update(
+                                                                    mapOf(
+                                                                        "idUsuario" to idUsuarioSesionActual,
+                                                                        "titulo" to titulo,
+                                                                        "descripcion" to descripcion,
+                                                                        "urlImagen" to urlImagen,
+                                                                        "precio" to precio.toDoubleOrNull(),
+                                                                        "tipo" to tipo
+                                                                    )
+                                                                )
+                                                            }
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Inmueble actualizado en Firebase",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        }.addOnFailureListener { e ->
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Error Firebase: ${e.message}",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        }
+                                                }
+
+                                                // Recargar lista usando el idUsuario como cadena
+                                                listaInmuebles =
+                                                    inmuebleDao.getInmueblesDeUsuario(
+                                                        idUsuarioSesionActual
+                                                    )
+                                                showDialog = false
                                             }
-                                            Toast.makeText(
-                                                context,
-                                                "Inmueble actualizado en Firebase",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }.addOnFailureListener { e ->
-                                            Toast.makeText(
-                                                context,
-                                                "Error Firebase: ${e.message}",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
                                         }
                                     }
-
-                                    // Recargar lista usando el idUsuario como cadena
-                                    listaInmuebles =
-                                        inmuebleDao.getInmueblesDeUsuario(idUsuarioSesionActual)
-                                    showDialog = false
-                                }
-//                            }
-                            }) {
-                            Text("Guardar")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showDialog = false }) {
-                            Text("Cancelar")
-                        }
-                    })
+                                }) {
+                                Text("Guardar")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDialog = false }) {
+                                Text("Cancelar")
+                            }
+                        })
+                }
             }
         }
     }
@@ -712,31 +902,45 @@ fun CarruselInmuebles(
 
 // Para el Menú Desplegable (4)
 @Composable
-fun MenuDesplegableOpcionesInmuebles() {
+fun MenuDesplegableOpcionesInmuebles(
+    onEditarClick: () -> Unit,
+    onEliminarClick: () -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-    ) {
-        // icono de tres puntos que expande las opciones
-        IconButton(onClick = { expanded = !expanded }) {
-            Icon(Icons.Default.MoreVert, contentDescription = "More options")
+    Box {
+        // Icono de tres puntos
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "Opciones"
+            )
         }
-        // icono izquierda con leadingIcon, derecha con trailingIcon
+
+        // Menú desplegable
         DropdownMenu(
-            expanded = expanded, onDismissRequest = { expanded = false }) {
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
             DropdownMenuItem(
                 text = { Text("Editar") },
                 leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
-                onClick = { /* Do something... */ })
+                onClick = {
+                    expanded = false
+                    onEditarClick()
+                }
+            )
+
             HorizontalDivider()
-            DropdownMenuItem(text = { Text("Eliminar") }, leadingIcon = {
-                Icon(
-                    Icons.Outlined.Delete, contentDescription = null
-                )
-            }, onClick = { /* Do something... */ })
+
+            DropdownMenuItem(
+                text = { Text("Eliminar") },
+                leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    onEliminarClick()
+                }
+            )
         }
     }
 }

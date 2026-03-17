@@ -12,6 +12,21 @@ sealed class AppScreens (val route: String) {
     object TodosInmuebles: AppScreens("TodosInmuebles")
     object MisPublicaciones: AppScreens("MisPublicaciones")
     object TodasPublicaciones: AppScreens("TodasPublicaciones")
+    object Productos: AppScreens("Productos")
+    object Ajustes: AppScreens("Ajustes")
+    object RegistroContactos: AppScreens("RegistroContactos")
+
+    companion object {
+        // Para buscar una pantalla por su ruta desde fuera de Compose (ej: desde MainActivity)
+        fun fromRoute(route: String): AppScreens? {
+            return listOf(
+                PrimeraP, SegundaP, TerceraP, Inicio, Formulario,
+                MenuPrincipal, Amigos, MisInmuebles, TodosInmuebles,
+                MisPublicaciones, TodasPublicaciones, Productos, Ajustes,
+                RegistroContactos
+            ).find { it.route == route }
+        }
+    }
 }
 
 
