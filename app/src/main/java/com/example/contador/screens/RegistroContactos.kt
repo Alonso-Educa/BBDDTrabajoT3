@@ -76,7 +76,8 @@ fun RegistroContactos(navController: NavController) {
     var updateNombre by remember { mutableStateOf("") }
     var updateApellidos by remember { mutableStateOf("") }
     var updateCorreo by remember { mutableStateOf("") }
-    var booleanContactoEstaCargado by remember { mutableStateOf(false) }
+    var booleanContactoEstaCargadoRoom by remember { mutableStateOf(false) }
+    var booleanContactoEstaCargadoFirebase by remember { mutableStateOf(false) }
 
     // Variables para la operación delete
     var deleteId by remember { mutableStateOf("") }
@@ -302,16 +303,29 @@ fun RegistroContactos(navController: NavController) {
                                     ).show()
                                 } else {
                                     try {
-                                        contactosDao.nuevoContacto(
-                                            ContactosData(
-                                                id, uid, createNombre, createApellidos, createCorreo
+                                        val usuarioExiste = contactosDao.getContactoPorId(id)
+                                        if (usuarioExiste == null) {
+                                            contactosDao.nuevoContacto(
+                                                ContactosData(
+                                                    id,
+                                                    uid,
+                                                    createNombre,
+                                                    createApellidos,
+                                                    createCorreo
+                                                )
                                             )
-                                        )
-                                        Toast.makeText(
-                                            context,
-                                            "Room: contacto creado correctamente",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
+                                            Toast.makeText(
+                                                context,
+                                                "Room: Contacto creado",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                "Room: Ya existe un contacto con ese ID",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
                                     } catch (e: Exception) {
                                         Toast.makeText(
                                             context, "Room error: ${e.message}", Toast.LENGTH_LONG
@@ -331,28 +345,50 @@ fun RegistroContactos(navController: NavController) {
                         if (createId.isBlank() || createNombre.isBlank() || createApellidos.isBlank() || createCorreo.isBlank()) {
                             Toast.makeText(context, "Rellena todos los campos", Toast.LENGTH_SHORT)
                                 .show()
+                        } else {
+                            // Comprueba si el contacto ya existe antes de crearlo
+                            firestore.collection("contactos").document(createId).get()
+                                .addOnSuccessListener { doc ->
+                                    if (doc.exists()) {
+                                        Toast.makeText(
+                                            context,
+                                            "Ya existe un contacto con ese ID",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        val data = mapOf(
+                                            "idContacto" to createId,
+                                            "idUsuario" to uid,
+                                            "nombre" to createNombre,
+                                            "apellidos" to createApellidos,
+                                            "correo" to createCorreo
+                                        )
+
+                                        firestore.collection("contactos").document(createId)
+                                            .set(data)
+                                            .addOnSuccessListener {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Firebase: Contacto creado",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }.addOnFailureListener { e ->
+                                                Toast.makeText(
+                                                    context,
+                                                    "Firebase error: ${e.message}",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                    }
+                                }
+                                .addOnFailureListener { e ->
+                                    Toast.makeText(
+                                        context,
+                                        "Error al verificar contacto: ${e.message}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                         }
-                        val usuarioExiste = db.usuarioDao().getUsuarioPorId(uid)
-                        Log.d("DEBUG", "Usuario en Room: $usuarioExiste")
-                        val data = mapOf(
-                            "idContacto" to createId,
-                            "idUsuario" to uid,
-                            "nombre" to createNombre,
-                            "apellidos" to createApellidos,
-                            "correo" to createCorreo
-                        )
-                        firestore.collection("contactos").document(createId).set(data)
-                            .addOnSuccessListener {
-                                Toast.makeText(
-                                    context,
-                                    "Firebase: contacto creado correctamente",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }.addOnFailureListener { e ->
-                                Toast.makeText(
-                                    context, "Firebase error: ${e.message}", Toast.LENGTH_LONG
-                                ).show()
-                            }
                     }
                 ) {
                     Text("Guardar en Firebase")
@@ -407,7 +443,7 @@ fun RegistroContactos(navController: NavController) {
                                 readResultadoRoom = contactosDao.getContactoPorId(id)
                                 if (readResultadoRoom == null) Toast.makeText(
                                     context,
-                                    "Room: no se encontró ningún contacto con ese ID",
+                                    "Room: No existe ningún contacto con ese ID",
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
@@ -434,7 +470,7 @@ fun RegistroContactos(navController: NavController) {
                                     readResultadoFirebase = ""
                                     Toast.makeText(
                                         context,
-                                        "Firebase: no se encontró ningún contacto con ese ID",
+                                        "Firebase: No existe ningún contacto con ese ID",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
@@ -541,51 +577,95 @@ fun RegistroContactos(navController: NavController) {
                     .padding(10.dp)
             )
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Campos para formulario
                 OutlinedTextField(
                     value = updateId,
-                    onValueChange = { updateId = it; booleanContactoEstaCargado = false },
-                    label = { Text("ID del Contacto") },
-                    modifier = Modifier.weight(1f)
+                    onValueChange = {
+                        updateId = it; booleanContactoEstaCargadoRoom =
+                        false; booleanContactoEstaCargadoFirebase = false
+                    },
+                    label = { Text("ID del Contacto a actualizar") },
+                    modifier = Modifier.fillMaxWidth()
                 )
-                // Botón para cargar contacto
-                Button(
-                    onClick = {
-                        scope.launch {
-                            val id = updateId.toIntOrNull()
-                            if (id == null) {
-                                Toast.makeText(
-                                    context, "El ID debe ser un número entero", Toast.LENGTH_SHORT
-                                ).show()
-                            } else {
-                                val c = contactosDao.getContactoPorId(id)
-                                if (c != null) {
-                                    updateNombre = c.nombre
-                                    updateApellidos = c.apellidos
-                                    updateCorreo = c.correo
-                                    booleanContactoEstaCargado = true
-                                } else {
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Botón para cargar contacto en Room
+                    Button(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        onClick = {
+                            scope.launch {
+                                val id = updateId.toIntOrNull()
+                                if (id == null) {
                                     Toast.makeText(
-                                        context, "Room: contacto no encontrado", Toast.LENGTH_SHORT
+                                        context, "El ID debe ser un número entero", Toast.LENGTH_SHORT
                                     ).show()
+                                } else {
+                                    val c = contactosDao.getContactoPorId(id)
+                                    if (c != null) {
+                                        updateNombre = c.nombre
+                                        updateApellidos = c.apellidos
+                                        updateCorreo = c.correo
+                                        booleanContactoEstaCargadoRoom = true
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "Room: No existe ningún contacto con ese ID",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
                                 }
                             }
                         }
+                    ) {
+                        Text("Cargar (Room)")
                     }
-                ) {
-                    Text("Cargar")
+
+                    // Botón para cargar contacto en Firebase
+                    Button(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        onClick = {
+                            if (updateId.isBlank()) {
+                                Toast.makeText(context, "Introduce un ID", Toast.LENGTH_SHORT).show()
+                            } else {
+                                firestore.collection("contactos").document(updateId).get()
+                                    .addOnSuccessListener { doc ->
+                                        if (doc.exists()) {
+                                            updateNombre = doc.getString("nombre") ?: ""
+                                            updateApellidos = doc.getString("apellidos") ?: ""
+                                            updateCorreo = doc.getString("correo") ?: ""
+                                            booleanContactoEstaCargadoFirebase = true
+                                            booleanContactoEstaCargadoRoom = false
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                "Firebase: No existe ningún contacto con ese ID",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                    .addOnFailureListener { e ->
+                                        Toast.makeText(context, "Firebase error: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
+                            }
+                        }
+                    ) {
+                        Text("Cargar (Firebase)")
+                    }
                 }
             }
 
-            // Cargar contacto
-            if (booleanContactoEstaCargado) {
+            // Cargar contacto en Room
+            if (booleanContactoEstaCargadoRoom) {
+                booleanContactoEstaCargadoFirebase = false
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Text(
-                    "Editar campos (el ID no se puede modificar)",
+                    "Editar campos en Room (el ID no se puede modificar)",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -625,7 +705,7 @@ fun RegistroContactos(navController: NavController) {
                                     )
                                     Toast.makeText(
                                         context,
-                                        "Room: contacto actualizado correctamente",
+                                        "Room: Contacto actualizado",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 } catch (e: Exception) {
@@ -638,7 +718,39 @@ fun RegistroContactos(navController: NavController) {
                     ) {
                         Text("Actualizar Room")
                     }
+                }
+            }
 
+            // Cargar contacto en Firebase
+            if (booleanContactoEstaCargadoFirebase) {
+                booleanContactoEstaCargadoRoom = false
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Text(
+                    "Editar campos en Firebase (el ID no se puede modificar)",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    updateNombre,
+                    { updateNombre = it },
+                    label = { Text("Nombre") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    updateApellidos,
+                    { updateApellidos = it },
+                    label = { Text("Apellidos") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    updateCorreo,
+                    { updateCorreo = it },
+                    label = { Text("Correo") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Botones de actualizar contacto
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         modifier = Modifier.weight(1f), onClick = {
                             if (updateId.isNotBlank()) {
@@ -651,7 +763,7 @@ fun RegistroContactos(navController: NavController) {
                                 ).addOnSuccessListener {
                                     Toast.makeText(
                                         context,
-                                        "Firebase: contacto actualizado correctamente",
+                                        "Firebase: Contacto actualizado",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }.addOnFailureListener { e ->
@@ -719,7 +831,7 @@ fun RegistroContactos(navController: NavController) {
                                     contactosDao.borrarContacto(contacto)
                                     Toast.makeText(
                                         context,
-                                        "Room: Contacto eliminado correctamente",
+                                        "Room: Contacto eliminado",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 } else {
@@ -747,7 +859,7 @@ fun RegistroContactos(navController: NavController) {
                                 .addOnSuccessListener {
                                     Toast.makeText(
                                         context,
-                                        "Firebase: Contacto eliminado correctamente",
+                                        "Firebase: Contacto eliminado",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }.addOnFailureListener { e ->
